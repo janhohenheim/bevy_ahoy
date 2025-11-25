@@ -466,7 +466,10 @@ fn stay_on_ground(
     let Some(hit) = hit else {
         return;
     };
-    if hit.intersects() || hit.normal1.y < ctx.cfg.min_walk_cos {
+    if hit.intersects()
+        || hit.normal1.y < ctx.cfg.min_walk_cos
+        || hit.distance <= ctx.cfg.ground_distance
+    {
         return;
     }
     transform.translation = start + cast_dir * hit.distance;
