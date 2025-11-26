@@ -25,7 +25,8 @@ pub(super) fn plugin(schedule: Interned<dyn ScheduleLabel>) -> impl Fn(&mut App)
     CharacterControllerState,
     TranslationInterpolation,
     RigidBody = RigidBody::Kinematic,
-    Collider = Collider::cylinder(0.7, 1.8)
+    Collider = Collider::cylinder(0.7, 1.8),
+    CustomPositionIntegration,
 )]
 #[component(on_add=CharacterController::on_add)]
 pub struct CharacterController {
@@ -138,18 +139,13 @@ impl CharacterController {
 #[derive(Component, Clone, Reflect, Default, Debug)]
 #[reflect(Component)]
 pub struct CharacterControllerState {
-    pub velocity: Vec3,
     pub base_velocity: Vec3,
     #[reflect(ignore)]
     pub standing_collider: Collider,
     #[reflect(ignore)]
     pub crouching_collider: Collider,
-    pub previous_grounded: Option<MoveHitData>,
     pub grounded: Option<MoveHitData>,
     pub crouching: bool,
-    pub ground_plane: bool,
-    pub grounded_entity: Option<Entity>,
-    pub walking: bool,
     pub touching_entities: EntityHashSet,
 }
 
@@ -169,15 +165,15 @@ fn run_kcc(
         &mut CharacterControllerState,
         &AccumulatedInput,
         &mut Transform,
+        &mut LinearVelocity,
         Option<&CharacterControllerCamera>,
     )>,
     cams: Query<&Transform, Without<CharacterController>>,
     time: Res<Time>,
     move_and_slide: MoveAndSlide,
 ) {
-    for (cfg, mut state, input, mut transform, cam) in &mut kccs {
+    for (cfg, mut state, input, mut transform, mut velocity, cam) in &mut kccs {
         state.touching_entities.clear();
-        let original_transform = *transform;
 
         let ctx = Ctx {
             orientation: cam
@@ -197,30 +193,31 @@ fn run_kcc(
         );
         transform.translation += offset;
 
-        categorize_position(&mut transform, &move_and_slide, &mut state, &ctx);
+        categorize_position(&mut transform, &velocity, &move_and_slide, &mut state, &ctx);
 
         check_duck(*transform, &move_and_slide, &mut state, &ctx);
 
         // here we'd handle things like spectator, dead, noclip, etc.
-        start_gravity(&mut state, &ctx);
+        start_gravity(&mut velocity, &mut state, &ctx);
 
         if input.jumped {
-            handle_jump(&mut state, &ctx);
+            handle_jump(&mut velocity, &mut state, &ctx);
         }
 
         // Fricion is handled before we add in any base velocity. That way, if we are on a conveyor,
         //  we don't slow when standing still, relative to the conveyor.
         if state.grounded.is_some() {
-            state.velocity.y = 0.0;
-            friction(&mut state, &ctx);
+            velocity.y = 0.0;
+            friction(&mut velocity, &mut state, &ctx);
         }
 
-        validate_velocity(&mut state, &ctx);
+        validate_velocity(&mut velocity, &ctx);
 
         let wish_velocity = calculate_wish_velocity(&state, &ctx);
         if state.grounded.is_some() {
             walk_move(
                 &mut transform,
+                &mut velocity,
                 wish_velocity,
                 &move_and_slide,
                 &mut state,
@@ -229,6 +226,7 @@ fn run_kcc(
         } else {
             air_move(
                 &mut transform,
+                &mut velocity,
                 wish_velocity,
                 &move_and_slide,
                 &mut state,
@@ -236,13 +234,13 @@ fn run_kcc(
             );
         }
 
-        categorize_position(&mut transform, &move_and_slide, &mut state, &ctx);
-        validate_velocity(&mut state, &ctx);
+        categorize_position(&mut transform, &velocity, &move_and_slide, &mut state, &ctx);
+        validate_velocity(&mut velocity, &ctx);
 
-        finish_gravity(&mut state, &ctx);
+        finish_gravity(&mut velocity, &ctx);
 
         if state.grounded.is_some() {
-            state.velocity.y = 0.0;
+            velocity.y = 0.0;
         }
         // TODO: check_falling();
     }
@@ -250,31 +248,27 @@ fn run_kcc(
 
 fn air_move(
     transform: &mut Transform,
+    velocity: &mut Vec3,
     wish_velocity: Vec3,
     move_and_slide: &MoveAndSlide,
     state: &mut CharacterControllerState,
     ctx: &Ctx,
 ) {
-    air_accelerate(wish_velocity, ctx.cfg.air_acceleration_hz, state, ctx);
+    air_accelerate(velocity, wish_velocity, ctx.cfg.air_acceleration_hz, ctx);
 
-    state.velocity += state.base_velocity;
+    *velocity += state.base_velocity;
 
-    move_character(transform, move_and_slide, state, ctx);
+    move_character(transform, velocity, move_and_slide, state, ctx);
 
-    state.velocity -= state.base_velocity;
+    *velocity -= state.base_velocity;
 }
 
-fn air_accelerate(
-    wish_velocity: Vec3,
-    acceleration_hz: f32,
-    state: &mut CharacterControllerState,
-    ctx: &Ctx,
-) {
+fn air_accelerate(velocity: &mut Vec3, wish_velocity: Vec3, acceleration_hz: f32, ctx: &Ctx) {
     let Ok((wish_dir, wish_speed)) = Dir3::new_and_length(wish_velocity) else {
         return;
     };
     let wishspd = f32::min(wish_speed, ctx.cfg.max_air_speed);
-    let current_speed = state.velocity.dot(*wish_dir);
+    let current_speed = velocity.dot(*wish_dir);
 
     let add_speed = wishspd - current_speed;
 
@@ -287,11 +281,12 @@ fn air_accelerate(
     let accel_speed = wish_speed * acceleration_hz * ctx.dt * surface_friction;
     let accel_speed = f32::min(accel_speed, add_speed);
 
-    state.velocity += accel_speed * wish_dir;
+    *velocity += accel_speed * wish_dir;
 }
 
 fn walk_move(
     transform: &mut Transform,
+    velocity: &mut Vec3,
     wish_velocity: Vec3,
     move_and_slide: &MoveAndSlide,
     state: &mut CharacterControllerState,
@@ -299,20 +294,20 @@ fn walk_move(
 ) {
     let old_grounded = state.grounded;
 
-    state.velocity.y = 0.0;
-    accelerate(wish_velocity, ctx.cfg.acceleration_hz, state, ctx);
-    state.velocity.y = 0.0;
+    velocity.y = 0.0;
+    accelerate(velocity, wish_velocity, ctx.cfg.acceleration_hz, ctx);
+    velocity.y = 0.0;
 
-    state.velocity += state.base_velocity;
-    let speed = state.velocity.length();
+    *velocity += state.base_velocity;
+    let speed = velocity.length();
 
     if speed < 0.01 {
-        state.velocity = Vec3::ZERO;
-        state.velocity -= state.base_velocity;
+        // zero velocity out and remove base
+        *velocity = -state.base_velocity;
         return;
     }
 
-    let mut movement = state.velocity * ctx.dt;
+    let mut movement = *velocity * ctx.dt;
     movement.y = 0.0;
 
     let hit = move_and_slide.cast_move(
@@ -326,7 +321,7 @@ fn walk_move(
 
     if hit.is_none() {
         transform.translation += movement;
-        state.velocity -= state.base_velocity;
+        *velocity -= state.base_velocity;
         let offset = move_and_slide.depenetrate(
             state.collider(),
             transform.translation,
@@ -341,34 +336,35 @@ fn walk_move(
 
     // Don't walk up stairs if not on ground.
     if old_grounded.is_none() {
-        state.velocity -= state.base_velocity;
+        *velocity -= state.base_velocity;
         return;
     }
 
-    step_move(transform, move_and_slide, state, ctx);
+    step_move(transform, velocity, move_and_slide, state, ctx);
 
-    state.velocity -= state.base_velocity;
+    *velocity -= state.base_velocity;
     stay_on_ground(transform, move_and_slide, state, ctx);
 }
 
 fn step_move(
     transform: &mut Transform,
+    velocity: &mut Vec3,
     move_and_slide: &MoveAndSlide,
     state: &mut CharacterControllerState,
     ctx: &Ctx,
 ) {
     let original_position = transform.translation;
-    let original_velocity = state.velocity;
+    let original_velocity = *velocity;
 
     // Slide the direct path
-    move_character(transform, move_and_slide, state, ctx);
+    move_character(transform, velocity, move_and_slide, state, ctx);
 
     let down_touching_entities = state.touching_entities.clone();
     let down_position = transform.translation;
-    let down_velocity = state.velocity;
+    let down_velocity = *velocity;
 
     transform.translation = original_position;
-    state.velocity = original_velocity;
+    *velocity = original_velocity;
 
     // step up
     let cast_dir = Dir3::Y;
@@ -387,7 +383,7 @@ fn step_move(
     transform.translation += cast_dir * dist;
 
     // try to slide from upstairs
-    move_character(transform, move_and_slide, state, ctx);
+    move_character(transform, velocity, move_and_slide, state, ctx);
 
     let cast_dir = Dir3::NEG_Y;
     let hit = move_and_slide.cast_move(
@@ -402,7 +398,7 @@ fn step_move(
     // If we either fall or slide, use the direct slide instead
     if !hit.is_some_and(|h| h.normal1.y >= ctx.cfg.min_walk_cos) {
         transform.translation = down_position;
-        state.velocity = down_velocity;
+        *velocity = down_velocity;
         return;
     };
     let hit = hit.unwrap();
@@ -423,15 +419,16 @@ fn step_move(
     let up_dist = vec_up_pos.xz().distance_squared(original_position.xz());
     if down_dist > up_dist {
         transform.translation = down_position;
-        state.velocity = down_velocity;
+        *velocity = down_velocity;
         state.touching_entities = down_touching_entities;
     } else {
-        state.velocity.y = down_velocity.y;
+        velocity.y = down_velocity.y;
     }
 }
 
 fn move_character(
     transform: &mut Transform,
+    velocity: &mut Vec3,
     move_and_slide: &MoveAndSlide,
     state: &mut CharacterControllerState,
     ctx: &Ctx,
@@ -446,7 +443,7 @@ fn move_character(
         state.collider(),
         transform.translation,
         transform.rotation,
-        state.velocity,
+        *velocity,
         ctx.dt_duration,
         &config,
         &ctx.cfg.filter,
@@ -456,14 +453,14 @@ fn move_character(
         },
     );
     transform.translation = out.position;
-    state.velocity = out.projected_velocity;
+    *velocity = out.projected_velocity;
     std::mem::swap(&mut state.touching_entities, &mut touching_entities);
 }
 
 fn stay_on_ground(
     transform: &mut Transform,
     move_and_slide: &MoveAndSlide,
-    state: &mut CharacterControllerState,
+    state: &CharacterControllerState,
     ctx: &Ctx,
 ) {
     let cast_dir = Vec3::Y;
@@ -510,16 +507,11 @@ fn stay_on_ground(
     transform.translation += offset;
 }
 
-fn accelerate(
-    wish_velocity: Vec3,
-    acceleration_hz: f32,
-    state: &mut CharacterControllerState,
-    ctx: &Ctx,
-) {
+fn accelerate(velocity: &mut Vec3, wish_velocity: Vec3, acceleration_hz: f32, ctx: &Ctx) {
     let Ok((wish_dir, wish_speed)) = Dir3::new_and_length(wish_velocity) else {
         return;
     };
-    let current_speed = state.velocity.dot(*wish_dir);
+    let current_speed = velocity.dot(*wish_dir);
     let add_speed = wish_speed - current_speed;
 
     if add_speed <= 0.0 {
@@ -531,18 +523,19 @@ fn accelerate(
     let accel_speed = wish_speed * acceleration_hz * ctx.dt * surface_friction;
     let accel_speed = f32::min(accel_speed, add_speed);
 
-    state.velocity += accel_speed * wish_dir;
+    *velocity += accel_speed * wish_dir;
 }
 
 fn categorize_position(
     transform: &mut Transform,
+    velocity: &Vec3,
     move_and_slide: &MoveAndSlide,
     state: &mut CharacterControllerState,
     ctx: &Ctx,
 ) {
     // TODO: reset surface friction here for some reason? something something water
 
-    let y_vel = state.velocity.y;
+    let y_vel = velocity.y;
     let moving_up = y_vel > 0.0;
     let mut moving_up_rapidly = y_vel > ctx.cfg.unground_speed;
     if moving_up_rapidly && let Some(_ground) = state.grounded {
@@ -577,8 +570,8 @@ fn categorize_position(
     // TODO: fire ground changed event
 }
 
-fn friction(state: &mut CharacterControllerState, ctx: &Ctx) {
-    let speed = state.velocity.length();
+fn friction(velocity: &mut Vec3, state: &CharacterControllerState, ctx: &Ctx) {
+    let speed = velocity.length();
     if speed < 0.001 {
         return;
     }
@@ -596,11 +589,11 @@ fn friction(state: &mut CharacterControllerState, ctx: &Ctx) {
     let mut new_speed = (speed - drop).max(0.0);
     if new_speed != speed {
         new_speed /= speed;
-        state.velocity *= new_speed;
+        *velocity *= new_speed;
     }
 }
 
-fn handle_jump(state: &mut CharacterControllerState, ctx: &Ctx) {
+fn handle_jump(velocity: &mut Vec3, state: &mut CharacterControllerState, ctx: &Ctx) {
     if state.grounded.is_none() {
         return;
     }
@@ -616,38 +609,35 @@ fn handle_jump(state: &mut CharacterControllerState, ctx: &Ctx) {
     // v = sqrt( g * 2.0 * 45 )
     let fl_mul = (2.0 * ctx.cfg.gravity * ctx.cfg.jump_height).sqrt();
     if state.crouching {
-        state.velocity.y = ground_factor * fl_mul;
+        velocity.y = ground_factor * fl_mul;
     } else {
-        state.velocity.y += ground_factor * fl_mul;
+        velocity.y += ground_factor * fl_mul;
     }
-    finish_gravity(state, ctx);
+    finish_gravity(velocity, ctx);
 
     // TODO: Trigger jump event
 }
 
-fn start_gravity(state: &mut CharacterControllerState, ctx: &Ctx) {
-    state.velocity.y += (state.base_velocity.y - ctx.cfg.gravity * 0.5) * ctx.dt;
+fn start_gravity(velocity: &mut Vec3, state: &mut CharacterControllerState, ctx: &Ctx) {
+    velocity.y += (state.base_velocity.y - ctx.cfg.gravity * 0.5) * ctx.dt;
     state.base_velocity.y = 0.0;
 
-    validate_velocity(state, ctx);
+    validate_velocity(velocity, ctx);
 }
 
-fn finish_gravity(state: &mut CharacterControllerState, ctx: &Ctx) {
-    state.velocity.y -= ctx.cfg.gravity * 0.5 * ctx.dt;
-    validate_velocity(state, ctx);
+fn finish_gravity(velocity: &mut Vec3, ctx: &Ctx) {
+    velocity.y -= ctx.cfg.gravity * 0.5 * ctx.dt;
+    validate_velocity(velocity, ctx);
 }
 
-fn validate_velocity(state: &mut CharacterControllerState, ctx: &Ctx) {
+fn validate_velocity(velocity: &mut Vec3, ctx: &Ctx) {
     for i in 0..3 {
-        if !state.velocity[i].is_finite() {
-            warn!(
-                "velocity[{i}] is not finite: {}, setting to 0",
-                state.velocity[i]
-            );
-            state.velocity[i] = 0.0;
+        if !velocity[i].is_finite() {
+            warn!("velocity[{i}] is not finite: {}, setting to 0", velocity[i]);
+            velocity[i] = 0.0;
         }
     }
-    state.velocity = state.velocity.clamp_length(0.0, ctx.cfg.max_speed);
+    *velocity = velocity.clamp_length(0.0, ctx.cfg.max_speed);
 }
 
 #[derive(Debug)]

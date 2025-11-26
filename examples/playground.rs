@@ -167,11 +167,11 @@ impl SpawnPlayer {
 
 fn reset_player(
     _fire: On<Fire<Reset>>,
-    player: Single<(&mut Transform, &mut CharacterControllerState), With<Player>>,
+    player: Single<(&mut Transform, &mut LinearVelocity), With<Player>>,
     spawner: Single<&Transform, (With<SpawnPlayer>, Without<Player>)>,
 ) {
-    let (mut transform, mut state) = player.into_inner();
-    state.velocity.y = 0.0;
+    let (mut transform, mut velocity) = player.into_inner();
+    **velocity = Vec3::ZERO;
     transform.translation = spawner.translation;
 }
 
@@ -323,14 +323,19 @@ fn release_cursor(mut cursor: Single<&mut CursorOptions>) {
 fn update_debug_text(
     mut text: Single<&mut Text, With<DebugText>>,
     kcc: Single<
-        (&CharacterControllerState, &CollidingEntities, &ColliderAabb),
+        (
+            &CharacterControllerState,
+            &LinearVelocity,
+            &CollidingEntities,
+            &ColliderAabb,
+        ),
         With<CharacterController>,
     >,
     camera: Single<&Transform, With<Camera>>,
     names: Query<NameOrEntity>,
 ) {
-    let (state, colliding_entities, aabb) = kcc.into_inner();
-    let velocity = state.velocity;
+    let (state, velocity, colliding_entities, aabb) = kcc.into_inner();
+    let velocity = **velocity;
     let speed = velocity.length();
     let horizontal_speed = velocity.xz().length();
     let camera_position = camera.translation;
