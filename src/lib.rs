@@ -18,7 +18,7 @@ pub mod prelude {
     pub use crate::{
         AhoyPlugin, AhoySystems,
         camera::{CharacterControllerCamera, CharacterControllerCameraOf},
-        input::{Crouch, Jump, Movement},
+        input::{Crouch, Jump, Movement, RotateCamera},
         kcc::CharacterController,
     };
 }

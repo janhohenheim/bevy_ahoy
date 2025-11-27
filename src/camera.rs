@@ -1,10 +1,11 @@
-use crate::{kcc::CharacterControllerState, prelude::*};
+use crate::{input::RotateCamera, kcc::CharacterControllerState, prelude::*};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         RunFixedMainLoop,
         sync_camera_transform.after(TransformEasingSystems::UpdateEasingTick),
-    );
+    )
+    .add_observer(rotate_camera);
 }
 
 #[derive(Component, Clone, Copy)]
@@ -49,4 +50,29 @@ pub(crate) fn sync_camera_transform(
                 kcc_transform.translation + Vec3::Y * (-height / 2.0 + view_height);
         }
     }
+}
+
+fn rotate_camera(
+    rotate: On<Fire<RotateCamera>>,
+    cameras: Query<&CharacterControllerCamera>,
+    mut transforms: Query<&mut Transform>,
+) {
+    let Ok(camera) = cameras.get(rotate.context) else {
+        return;
+    };
+    let Ok(mut transform) = transforms.get_mut(camera.get()) else {
+        return;
+    };
+    let (mut yaw, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
+
+    let delta = -rotate.value;
+    yaw += delta.x.to_radians();
+    pitch += delta.y.to_radians();
+    #[cfg(feature = "f32")]
+    use std::f32::consts::TAU;
+    #[cfg(feature = "f64")]
+    use std::f64::consts::TAU;
+    pitch = pitch.clamp(-TAU / 4.0 + 0.01, TAU / 4.0 - 0.01);
+
+    transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
 }

@@ -25,7 +25,7 @@ This tradeoff allows Ahoy to fully define its own separate model of how a charac
 - [ ] **Push objects**: Move into dynamic rigid bodies to apply force to them
 - [ ] **Be pushed**: Stand next to a moving kinematic rigid body to be pushed by it. Put the player in peril by surrounding them with approaching walls!
 - [ ] **Moving platforms**: Step onto moving kinematic rigid bodies to move with them. Useful for elevators, conveyor belts, etc.
-- [ ] **First person camera controller**: Add `CameraOfCharacterController` to a camera to have out-of-the-box first person camera behavior
+- [x] **First person camera controller**: Add `CameraOfCharacterController` to a camera to have out-of-the-box first person camera behavior
 - [ ] **Events**: observe events for jump start, landing, stair stepping, etc. to add sound effects, particles, damage the character, etc.
 - [ ] **Wall running**: run along walls for a given distance and jump off of them
 - [ ] **Double jump**: jump a second time in the air with a different feel from the first jump. Can be chained with wall running.

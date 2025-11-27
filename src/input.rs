@@ -26,6 +26,10 @@ pub struct Jump;
 #[action_output(bool)]
 pub struct Crouch;
 
+#[derive(Debug, InputAction)]
+#[action_output(Vec2)]
+pub struct RotateCamera;
+
 /// Input accumulated since the last fixed update loop. Is cleared after every fixed update loop.
 #[derive(Component, Clone, Copy, Reflect, Default, Debug)]
 #[reflect(Component)]

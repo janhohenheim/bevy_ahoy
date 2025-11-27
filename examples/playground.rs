@@ -16,7 +16,6 @@ use bevy_mod_mipmap_generator::{MipmapGeneratorPlugin, generate_mipmaps};
 use bevy_trenchbroom::{physics::SceneCollidersReady, prelude::*};
 use bevy_trenchbroom_avian::AvianPhysicsBackend;
 use core::ops::Deref;
-use std::f32::consts::TAU;
 
 fn main() -> AppExit {
     App::new()
@@ -84,7 +83,6 @@ fn main() -> AppExit {
                 release_cursor.run_if(input_just_pressed(KeyCode::Escape)),
             ),
         )
-        .add_observer(rotate_camera)
         .run()
 }
 
@@ -193,10 +191,6 @@ pub(crate) struct PlayerInput;
 
 #[derive(Debug, InputAction)]
 #[action_output(Vec2)]
-pub(crate) struct Rotate;
-
-#[derive(Debug, InputAction)]
-#[action_output(Vec2)]
 pub(crate) struct Reset;
 
 impl PlayerInput {
@@ -226,8 +220,14 @@ impl PlayerInput {
                     bindings![KeyCode::KeyR, GamepadButton::Select],
                     Release::default(),
                 ),
-                (Action::<Rotate>::new(),Negate::all(), Scale::splat(0.1),
-                    Bindings::spawn((Spawn(Binding::mouse_motion()), Axial::right_stick()))),
+                (
+                    Action::<RotateCamera>::new(),
+                    Scale::splat(0.1),
+                    Bindings::spawn((
+                        Spawn(Binding::mouse_motion()),
+                        Axial::right_stick()
+                    ))
+                ),
             ]));
     }
 }
@@ -294,20 +294,6 @@ fn on_add_prop<T: QuakeClass + Deref<Target = bool>>(mut world: DeferredWorld, c
                 commands.entity(*collider).insert(ColliderDensity(100.0));
             }
         });
-}
-
-fn rotate_camera(
-    rotate: On<Fire<Rotate>>,
-    mut camera: Single<&mut Transform, (With<Camera>, Without<Player>)>,
-) {
-    let (mut yaw, mut pitch, _) = camera.rotation.to_euler(EulerRot::YXZ);
-
-    let delta = rotate.value;
-    yaw += delta.x.to_radians();
-    pitch += delta.y.to_radians();
-    pitch = pitch.clamp(-TAU / 4.0 + 0.01, TAU / 4.0 - 0.01);
-
-    camera.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
 }
 
 fn capture_cursor(mut cursor: Single<&mut CursorOptions>) {
