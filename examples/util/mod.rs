@@ -97,10 +97,10 @@ fn update_debug_text(
 
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
-pub(crate) struct DebugText;
+struct DebugText;
 
 fn setup_ui(mut commands: Commands) {
-    commands.spawn((Node::default(), Text::default(), DebugText));
+    commands.spawn((Node::default(), Text::new("Loading..."), DebugText));
     commands.spawn((
         Node {
             justify_self: JustifySelf::End,
@@ -127,8 +127,8 @@ fn setup_ui(mut commands: Commands) {
 struct DebugInput;
 
 #[derive(Debug, InputAction)]
-#[action_output(Vec2)]
-struct Reset;
+#[action_output(bool)]
+pub(super) struct Reset;
 
 fn reset_player(_fire: On<Fire<Reset>>, mut commands: Commands) {
     commands.run_system_cached(reset_player_inner);

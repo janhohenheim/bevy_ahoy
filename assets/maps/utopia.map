@@ -24153,7 +24153,7 @@
 // entity 45
 {
 "classname" "trigger_push"
-"speed" "500"
+"speed" "12.7"
 // brush 0
 {
 ( -64 -512 -1792 ) ( -64 -512 -2784 ) ( -64 512 -1792 ) tools/tool_trigger [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 0.25 0.25

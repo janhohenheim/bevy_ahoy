@@ -4,19 +4,14 @@ use bevy::{
     gltf::GltfPlugin,
     image::{ImageAddressMode, ImageSamplerDescriptor},
     input::common_conditions::input_just_pressed,
-    light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap},
     log::{LogPlugin, tracing_subscriber::field::MakeExt},
-    pbr::Atmosphere,
     prelude::*,
-    scene::SceneInstanceReady,
     window::{CursorGrabMode, CursorOptions, WindowResolution},
 };
-use bevy_ahoy::{kcc::CharacterControllerState, prelude::*};
-use bevy_enhanced_input::prelude::{Release, *};
-use bevy_mod_mipmap_generator::{MipmapGeneratorPlugin, generate_mipmaps};
-use bevy_trenchbroom::{physics::SceneCollidersReady, prelude::*};
+use bevy_ahoy::prelude::*;
+use bevy_enhanced_input::prelude::*;
+use bevy_trenchbroom::prelude::*;
 use bevy_trenchbroom_avian::AvianPhysicsBackend;
-use core::ops::Deref;
 
 use crate::util::ExampleUtilPlugin;
 
@@ -76,11 +71,7 @@ fn main() -> AppExit {
             AhoyPlugin::default(),
             TrenchBroomPlugins(
                 TrenchBroomConfig::new("bevy_ahoy_surf")
-                    .default_solid_scene_hooks(|| {
-                        SceneHooks::new()
-                            .convex_collider()
-                            .smooth_by_default_angle()
-                    })
+                    .default_solid_scene_hooks(|| SceneHooks::new().convex_collider())
                     .auto_remove_textures(
                         [
                             "clip",
@@ -117,6 +108,23 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
+#[require(
+    PlayerInput,
+    CharacterController {
+        acceleration_hz: 10.0,
+        air_acceleration_hz: 150.0,
+        // Uncomment these for Momentum Mod style surf
+        // speed: 6.0,
+        // gravity: 23.0,
+        ..default()
+    },
+    RigidBody::Kinematic,
+    Collider::cylinder(0.7, 1.8),
+    CollisionLayers::new(
+        [CollisionLayer::Player],
+        LayerMask::ALL,
+    )
+)]
 struct Player;
 
 #[point_class(base(Transform, Visibility))]
@@ -137,20 +145,7 @@ fn spawn_player(
     let Ok(transform) = spawner.get(insert.entity).copied() else {
         return;
     };
-    let player = commands
-        .spawn((
-            Player,
-            transform,
-            PlayerInput,
-            CharacterController {
-                acceleration_hz: 10.0,
-                air_acceleration_hz: 150.0,
-                ..default()
-            },
-            RigidBody::Kinematic,
-            Collider::cylinder(0.7, 1.8),
-        ))
-        .id();
+    let player = commands.spawn((Player, transform)).id();
     commands
         .entity(camera.into_inner())
         .insert(CharacterControllerCameraOf(player));
@@ -194,20 +189,19 @@ impl PlayerInput {
     }
 }
 
-#[solid_class(base(Transform, Visibility), hooks(SceneHooks::new().smooth_by_default_angle()))]
-#[component(on_add = Self::on_add_prop)]
+#[solid_class(base(Transform, Visibility), hooks(SceneHooks::new()))]
 struct FuncIllusionary;
 
-impl FuncIllusionary {
-    fn on_add_prop(mut world: DeferredWorld, ctx: HookContext) {
-        if world.is_scene_world() {
-            return;
-        }
-    }
-}
-
-#[solid_class(base(Transform, Visibility), hooks(SceneHooks::new().smooth_by_default_angle()))]
+#[solid_class(base(Transform, Visibility))]
 #[component(on_add = Self::on_add_prop)]
+#[require(
+    Sensor,
+    CollisionEventsEnabled,
+    CollisionLayers::new(
+        [CollisionLayer::Sensor],
+        [CollisionLayer::Player],
+    )
+)]
 struct TriggerTeleport;
 
 impl TriggerTeleport {
@@ -215,12 +209,32 @@ impl TriggerTeleport {
         if world.is_scene_world() {
             return;
         }
+        world.commands().spawn(
+            Observer::new(
+                |_: On<CollisionStart>,
+                 mut commands: Commands,
+                 reset: Single<Entity, With<Action<util::Reset>>>| {
+                    commands
+                        .entity(*reset)
+                        .insert(ActionMock::once(ActionState::Fired, true));
+                },
+            )
+            .with_entity(ctx.entity),
+        );
     }
 }
 
-#[solid_class(base(Transform, Visibility), hooks(SceneHooks::new().smooth_by_default_angle()))]
+#[solid_class(base(Transform, Visibility))]
 #[component(on_add = Self::on_add_prop)]
 #[derive(Default)]
+#[require(
+    Sensor,
+    CollisionEventsEnabled,
+    CollisionLayers::new(
+        [CollisionLayer::Sensor],
+        [CollisionLayer::Player],
+    )
+)]
 struct TriggerPush {
     speed: f32,
 }
@@ -230,6 +244,22 @@ impl TriggerPush {
         if world.is_scene_world() {
             return;
         }
+        world.commands().spawn(
+            Observer::new(
+                |start: On<CollisionStart>,
+                 push: Query<&TriggerPush>,
+                 mut velocity: Single<&mut LinearVelocity, With<Player>>| {
+                    let Ok(push) = push.get(start.collider1) else {
+                        return;
+                    };
+                    let Ok((dir, vel)) = Dir3::new_and_length(velocity.0) else {
+                        return;
+                    };
+                    velocity.0 = dir * (vel + push.speed);
+                },
+            )
+            .with_entity(ctx.entity),
+        );
     }
 }
 
@@ -241,4 +271,12 @@ fn capture_cursor(mut cursor: Single<&mut CursorOptions>) {
 fn release_cursor(mut cursor: Single<&mut CursorOptions>) {
     cursor.visible = true;
     cursor.grab_mode = CursorGrabMode::None;
+}
+
+#[derive(PhysicsLayer, Default)]
+enum CollisionLayer {
+    #[default]
+    Default,
+    Player,
+    Sensor,
 }
