@@ -198,7 +198,7 @@ fn run_kcc(
         };
         depenetrate_character(&mut transform, &move_and_slide, &state, &ctx);
 
-        update_grounded(&mut transform, &velocity, &move_and_slide, &mut state, &ctx);
+        update_grounded(&transform, &velocity, &move_and_slide, &mut state, &ctx);
 
         handle_crouching(*transform, &move_and_slide, &mut state, &ctx);
 
