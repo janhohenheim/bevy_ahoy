@@ -38,8 +38,8 @@ use avian3d::{
     parry::shape::{Capsule, SharedShape},
 };
 use bevy_ecs::{
-    entity::EntityHashSet, intern::Interned, lifecycle::HookContext,
-    relationship::RelationshipSourceCollection as _, schedule::ScheduleLabel, world::DeferredWorld,
+    intern::Interned, lifecycle::HookContext, relationship::RelationshipSourceCollection as _,
+    schedule::ScheduleLabel, world::DeferredWorld,
 };
 use bevy_time::Stopwatch;
 use core::time::Duration;

@@ -2,7 +2,6 @@ use std::{f32::consts::TAU, time::Duration};
 
 use avian_pickup::actor::AvianPickupActor;
 use bevy_ecs::{lifecycle::HookContext, relationship::Relationship, world::DeferredWorld};
-use tracing::info;
 
 use crate::{CharacterControllerState, input::RotateCamera, prelude::*};
 
@@ -83,14 +82,14 @@ pub(crate) fn sync_camera_transform(
                     &new_translation.y,
                     decay_rate,
                     time.delta_secs(),
-                )
+                );
             } else if new_translation.y - camera_transform.translation.y < 10.0 {
                 let decay_rate = f32::ln(100_000_000.0);
                 camera_transform.translation.y.smooth_nudge(
                     &new_translation.y,
                     decay_rate,
                     time.delta_secs(),
-                )
+                );
             } else {
                 camera_transform.translation.y = new_translation.y;
             }

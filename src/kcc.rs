@@ -1,8 +1,6 @@
-use bevy_ecs::{
-    intern::Interned, relationship::RelationshipSourceCollection as _, schedule::ScheduleLabel,
-};
+use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use core::time::Duration;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::{CharacterControllerState, input::AccumulatedInput, prelude::*};
 

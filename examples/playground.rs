@@ -6,9 +6,9 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions},
 };
-use bevy_ahoy::{PickupHoldConfig, PickupPullConfig, PickupThrowConfig, prelude::*};
+use bevy_ahoy::{PickupHoldConfig, PickupPullConfig, prelude::*};
 use bevy_enhanced_input::prelude::{Press, *};
-use bevy_trenchbroom::{physics::SceneCollidersReady, prelude::*};
+use bevy_trenchbroom::prelude::*;
 use bevy_trenchbroom_avian::AvianPhysicsBackend;
 use core::ops::Deref;
 
