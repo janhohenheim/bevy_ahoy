@@ -132,7 +132,7 @@ fn spawn_player(
     let player = commands.spawn((Player, transform)).id();
     commands
         .entity(camera.into_inner())
-        .insert(CharacterControllerCameraOf(player));
+        .insert(CharacterControllerCameraOf::new(player));
 }
 
 #[derive(Component, Default)]

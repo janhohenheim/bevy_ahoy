@@ -88,7 +88,7 @@ fn spawn_player(
         ))
         .id();
     commands.entity(camera.into_inner()).insert((
-        CharacterControllerCameraOf(player),
+        CharacterControllerCameraOf::new(player),
         PickupConfig {
             prop_filter: SpatialQueryFilter::from_mask(CollisionLayer::Prop),
             actor_filter: SpatialQueryFilter::from_mask(CollisionLayer::Player),

@@ -17,7 +17,24 @@ pub(super) fn plugin(app: &mut App) {
 #[relationship(relationship_target = CharacterControllerCamera)]
 #[require(AvianPickupActor, Transform)]
 #[component(on_add = Self::on_add)]
-pub struct CharacterControllerCameraOf(pub Entity);
+pub struct CharacterControllerCameraOf {
+    #[relationship]
+    pub character_controller: Entity,
+    pub enable_smoothing: bool,
+    pub step_smooth_time: Duration,
+    pub teleport_detection_distance: f32,
+}
+
+impl CharacterControllerCameraOf {
+    pub fn new(character_controller: Entity) -> Self {
+        Self {
+            character_controller,
+            enable_smoothing: true,
+            step_smooth_time: Duration::from_millis(200),
+            teleport_detection_distance: 10.0,
+        }
+    }
+}
 
 impl CharacterControllerCameraOf {
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
@@ -55,8 +72,8 @@ pub(crate) fn sync_camera_transform(
     // TODO: DIY TransformHelper to use current global transform.
     // Can't use GlobalTransform directly: outdated -> jitter
     // Can't use TransformHelper directly: access conflict with &mut Transform
-    for (mut camera_transform, camera_of) in cameras.iter_mut() {
-        if let Ok((kcc_transform, cfg, state)) = kccs.get(camera_of.0) {
+    for (mut camera_transform, camera) in cameras.iter_mut() {
+        if let Ok((kcc_transform, cfg, state)) = kccs.get(camera.character_controller) {
             let height = state
                 // changing the collider does not change the transform, so to get the correct position for the feet,
                 // we need to use the collider we spawned with.
@@ -73,9 +90,12 @@ pub(crate) fn sync_camera_transform(
                 kcc_transform.translation + Vec3::Y * (-height / 2.0 + view_height);
             camera_transform.translation.x = new_translation.x;
             camera_transform.translation.z = new_translation.z;
-            let smooth_time = Duration::from_millis(200);
-            if state.last_step_up.elapsed() < smooth_time
-                || state.last_step_down.elapsed() < smooth_time
+            if !camera.enable_smoothing {
+                camera_transform.translation.y = new_translation.y;
+                return;
+            }
+            if state.last_step_up.elapsed() < camera.step_smooth_time
+                || state.last_step_down.elapsed() < camera.step_smooth_time
             {
                 let decay_rate = f32::ln(100000.0);
                 camera_transform.translation.y.smooth_nudge(
@@ -83,7 +103,9 @@ pub(crate) fn sync_camera_transform(
                     decay_rate,
                     time.delta_secs(),
                 );
-            } else if new_translation.y - camera_transform.translation.y < 10.0 {
+            } else if new_translation.y - camera_transform.translation.y
+                < camera.teleport_detection_distance
+            {
                 let decay_rate = f32::ln(100_000_000.0);
                 camera_transform.translation.y.smooth_nudge(
                     &new_translation.y,

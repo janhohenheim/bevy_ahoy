@@ -74,7 +74,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3d::default(),
         // Enable optional builtin camera controller
-        CharacterControllerCameraOf(player),
+        CharacterControllerCameraOf::new(player),
     ));
 
     // Light
