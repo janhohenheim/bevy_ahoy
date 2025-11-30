@@ -18,32 +18,37 @@ use bevy_ahoy::{CharacterControllerState, prelude::*};
 use bevy_ecs::world::FilteredEntityRef;
 use bevy_enhanced_input::prelude::{Release, *};
 use bevy_fix_cursor_unlock_web::{FixPointerUnlockPlugin, ForceUnlockCursor};
+use bevy_framepace::FramepacePlugin;
 use bevy_mod_mipmap_generator::{MipmapGeneratorPlugin, generate_mipmaps};
 
 pub(super) struct ExampleUtilPlugin;
 
 impl Plugin for ExampleUtilPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((MipmapGeneratorPlugin, FixPointerUnlockPlugin))
-            .add_systems(Startup, setup_ui)
-            .add_systems(
-                Update,
-                (
-                    update_debug_text,
-                    tweak_materials,
-                    generate_mipmaps::<StandardMaterial>,
-                ),
-            )
-            .add_observer(reset_player)
-            .add_observer(tweak_camera)
-            .add_observer(tweak_directional_light)
-            .add_observer(toggle_debug)
-            .add_observer(unlock_cursor_web)
-            .insert_resource(DirectionalLightShadowMap { size: 4096 * 2 })
-            .add_systems(Update, turn_sun)
-            .add_input_context::<DebugInput>()
-            // For debug printing
-            .register_required_components::<CharacterController, CollidingEntities>();
+        app.add_plugins((
+            MipmapGeneratorPlugin,
+            FixPointerUnlockPlugin,
+            FramepacePlugin,
+        ))
+        .add_systems(Startup, setup_ui)
+        .add_systems(
+            Update,
+            (
+                update_debug_text,
+                tweak_materials,
+                generate_mipmaps::<StandardMaterial>,
+            ),
+        )
+        .add_observer(reset_player)
+        .add_observer(tweak_camera)
+        .add_observer(tweak_directional_light)
+        .add_observer(toggle_debug)
+        .add_observer(unlock_cursor_web)
+        .insert_resource(DirectionalLightShadowMap { size: 4096 * 2 })
+        .add_systems(Update, turn_sun)
+        .add_input_context::<DebugInput>()
+        // For debug printing
+        .register_required_components::<CharacterController, CollidingEntities>();
     }
 }
 
