@@ -243,7 +243,7 @@ enum CollisionLayer {
 
 #[solid_class(base(Transform, Visibility))]
 #[derive(Default)]
-#[require(RigidBody::Kinematic, GlobalTransform)]
+#[require(RigidBody::Kinematic, TransformInterpolation, GlobalTransform)]
 struct FuncTrain {
     target: String,
     speed: f32,
