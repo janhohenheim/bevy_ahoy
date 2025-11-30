@@ -328,7 +328,7 @@ fn move_character(
         &config,
         &ctx.cfg.filter,
         |hit| {
-            touching_entities.insert(hit.entity);
+            touching_entities.push(hit.into());
             true
         },
     );

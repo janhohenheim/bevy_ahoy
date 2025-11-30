@@ -46,6 +46,7 @@ use core::time::Duration;
 use std::sync::Arc;
 
 pub mod camera;
+mod dynamics;
 mod fixed_update_utils;
 pub mod input;
 mod kcc;
@@ -77,7 +78,10 @@ impl Plugin for AhoyPlugin {
     fn build(&self, app: &mut App) {
         app.configure_sets(
             self.schedule,
-            (AhoySystems::MoveCharacters)
+            (
+                AhoySystems::MoveCharacters,
+                AhoySystems::ApplyForcesToDynamicRigidBodies,
+            )
                 .chain()
                 .in_set(PhysicsSystems::First),
         )
@@ -87,6 +91,7 @@ impl Plugin for AhoyPlugin {
             kcc::plugin(self.schedule),
             fixed_update_utils::plugin,
             pickup_glue::plugin,
+            dynamics::plugin(self.schedule),
             AvianPickupPlugin::default(),
         ));
     }
@@ -96,6 +101,7 @@ impl Plugin for AhoyPlugin {
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum AhoySystems {
     MoveCharacters,
+    ApplyForcesToDynamicRigidBodies,
 }
 
 #[derive(Component, Clone, Reflect, Debug)]
@@ -236,7 +242,7 @@ pub struct CharacterControllerState {
     pub crouching_collider: Collider,
     pub grounded: Option<MoveHitData>,
     pub crouching: bool,
-    pub touching_entities: EntityHashSet,
+    pub touching_entities: Vec<TouchingEntity>,
     pub last_ground: Stopwatch,
 }
 
@@ -246,6 +252,54 @@ impl CharacterControllerState {
             &self.crouching_collider
         } else {
             &self.standing_collider
+        }
+    }
+}
+
+/// Data related to a hit during [`MoveAndSlide::move_and_slide`].
+#[derive(Clone, Reflect, PartialEq, Debug)]
+pub struct TouchingEntity {
+    /// The entity of the collider that was hit by the shape.
+    pub entity: Entity,
+
+    /// The maximum distance that is safe to move in the given direction so that the collider
+    /// still keeps a distance of `skin_width` to the other colliders.
+    ///
+    /// This is `0.0` when any of the following is true:
+    ///
+    /// - The collider started off intersecting another collider.
+    /// - The collider is moving toward another collider that is already closer than `skin_width`.
+    ///
+    /// If you want to know the real distance to the next collision, use [`Self::collision_distance`].
+    pub distance: f32,
+
+    /// The hit point on the shape that was hit, expressed in world space.
+    pub point: Vec3,
+
+    /// The outward surface normal on the hit shape at `point`, expressed in world space.
+    pub normal: Dir3,
+
+    /// The position of the collider at the time of the move and slide iteration.
+    pub character_position: Vec3,
+
+    /// The velocity of the collider at the time of the move and slide iteration.
+    pub character_velocity: Vec3,
+
+    /// The raw distance to the next collision, not respecting skin width.
+    /// To move the shape, use [`Self::distance`] instead.
+    #[doc(alias = "time_of_impact")]
+    pub collision_distance: f32,
+}
+impl From<MoveAndSlideHitData<'_>> for TouchingEntity {
+    fn from(value: MoveAndSlideHitData<'_>) -> Self {
+        Self {
+            entity: value.entity,
+            distance: value.distance,
+            point: value.point,
+            normal: *value.normal,
+            character_position: *value.position,
+            character_velocity: *value.velocity,
+            collision_distance: value.collision_distance,
         }
     }
 }

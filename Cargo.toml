@@ -11,14 +11,8 @@ keywords = ["kcc", "character", "controller", "source", "quake"]
 categories = ["game-development"]
 include = ["/src", "/license*", "/examples"]
 
-
-[features]
-default = ["f32"]
-f32 = ["avian3d/parry-f32"]
-f64 = ["avian3d/parry-f64"]
-
 [dependencies]
-avian3d = { version = "0.4.1", default-features = false, features = ["default-collider", "3d"] }
+avian3d = { version = "0.4.1", default-features = false, features = ["default-collider", "3d", "f32"] }
 bevy_ecs = { version = "0.17", default-features = false }
 bevy_app = { version = "0.17", default-features = false }
 bevy_derive = { version = "0.17", default-features = false }

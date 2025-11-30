@@ -10,6 +10,7 @@ use bevy::{
         light_consts::lux,
     },
     pbr::Atmosphere,
+    platform::collections::HashSet,
     post_process::bloom::Bloom,
     prelude::*,
     window::{CursorGrabMode, CursorOptions},
@@ -72,7 +73,13 @@ fn update_debug_text(
     let horizontal_speed = velocity.xz().length();
     let camera_position = camera.translation;
     let collisions = names
-        .iter_many(state.touching_entities.iter())
+        .iter_many(
+            state
+                .touching_entities
+                .iter()
+                .map(|e| e.entity)
+                .collect::<HashSet<_>>(),
+        )
         .map(|name| {
             name.name
                 .map(|n| format!("{} ({})", name.entity, n))

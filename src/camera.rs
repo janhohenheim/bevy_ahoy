@@ -1,3 +1,5 @@
+use std::f32::consts::TAU;
+
 use avian_pickup::actor::AvianPickupActor;
 
 use crate::{CharacterControllerState, input::RotateCamera, prelude::*};
@@ -71,10 +73,6 @@ fn rotate_camera(
     let delta = -rotate.value;
     yaw += delta.x.to_radians();
     pitch += delta.y.to_radians();
-    #[cfg(feature = "f32")]
-    use std::f32::consts::TAU;
-    #[cfg(feature = "f64")]
-    use std::f64::consts::TAU;
     pitch = pitch.clamp(-TAU / 4.0 + 0.01, TAU / 4.0 - 0.01);
 
     transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
