@@ -1,19 +1,29 @@
 //! Common functionality for the examples. This is just aesthetic stuff, you don't need to copy any of this into your own projects.
 
-use std::f32::consts::TAU;
+use std::{
+    f32::consts::TAU,
+    time::{Duration, Instant},
+};
 
 use avian3d::prelude::*;
 use bevy::{
     camera::Exposure,
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, light_consts::lux},
     pbr::Atmosphere,
     platform::collections::HashSet,
     post_process::bloom::Bloom,
     prelude::*,
+    render::{Render, RenderApp},
+    time::TimeSender,
     window::{CursorGrabMode, CursorOptions},
 };
 use bevy_ahoy::{CharacterControllerState, prelude::*};
-use bevy_ecs::world::FilteredEntityRef;
+use bevy_ecs::{
+    entity_disabling::Disabled,
+    schedule::{ExecutorKind, ScheduleLabel},
+    world::FilteredEntityRef,
+};
 use bevy_enhanced_input::prelude::{Release, *};
 use bevy_fix_cursor_unlock_web::{FixPointerUnlockPlugin, ForceUnlockCursor};
 use bevy_framepace::FramepacePlugin;
@@ -26,7 +36,9 @@ impl Plugin for ExampleUtilPlugin {
         app.add_plugins((
             MipmapGeneratorPlugin,
             FixPointerUnlockPlugin,
-            FramepacePlugin,
+            PlzFixInputDelayPlugin,
+            FrameTimeDiagnosticsPlugin::default(),
+            LogDiagnosticsPlugin::default(),
         ))
         .add_systems(Startup, (setup_ui, spawn_crosshair))
         .add_systems(
@@ -48,6 +60,104 @@ impl Plugin for ExampleUtilPlugin {
         .add_input_context::<DebugInput>()
         // For debug printing
         .register_required_components::<CharacterController, CollidingEntities>();
+    }
+}
+
+struct PlzFixInputDelayPlugin;
+impl Plugin for PlzFixInputDelayPlugin {
+    fn build(&self, app: &mut App) {
+        let mut main_wrapper_schedule = Schedule::new(MainWrapper);
+        main_wrapper_schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+        app.add_schedule(main_wrapper_schedule)
+            .add_systems(MainWrapper, run_main_wrapper)
+            .init_resource::<AccumulatedTime>();
+        app.main_mut().update_schedule = Some(MainWrapper.intern());
+    }
+    fn finish(&self, app: &mut App) {
+        let render_app = app.get_sub_app_mut(RenderApp).unwrap();
+        let mut render_wrapper_schedule = Schedule::new(RenderWrapper);
+        render_wrapper_schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+        render_app
+            .add_schedule(render_wrapper_schedule)
+            .add_systems(RenderWrapper, run_render_wrapper)
+            .init_resource::<AccumulatedTime>();
+        render_app.update_schedule = Some(RenderWrapper.intern());
+        let mut should_run_startup = true;
+        let mut original_extract = render_app.take_extract().unwrap();
+        render_app.set_extract(move |main_world, render_world| {
+            render_world.resource_mut::<AccumulatedTime>().0 =
+                main_world.resource::<AccumulatedTime>().0;
+            if should_run_startup {
+                original_extract(main_world, render_world);
+                should_run_startup = false;
+            } else if main_world.resource::<AccumulatedTime>().0.as_secs_f32() > 1.0 / 60.0 {
+                main_world.resource_mut::<AccumulatedTime>().0 = default();
+                original_extract(main_world, render_world);
+            } else {
+                original_extract(main_world, render_world);
+            }
+        });
+    }
+}
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct MainWrapper;
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct RenderWrapper;
+
+#[derive(Resource, Default)]
+pub(crate) struct AccumulatedTime(Duration);
+
+fn run_main_wrapper(world: &mut World) {
+    let dt = world.resource::<Time>().delta();
+    world.resource_mut::<AccumulatedTime>().0 += dt;
+    if world.resource::<AccumulatedTime>().0.as_secs_f32() > 1.0 / 60.0
+        || world.is_resource_added::<AccumulatedTime>()
+    {
+        if let Ok(cam) = world
+            .query_filtered::<Entity, (With<Camera3d>, Allow<Disabled>)>()
+            .single(world)
+        {
+            world.entity_mut(cam).remove::<Disabled>();
+        }
+        world.run_schedule(Main);
+    } else {
+        if let Ok(cam) = world
+            .query_filtered::<Entity, With<Camera3d>>()
+            .single(world)
+        {
+            world.entity_mut(cam).insert(Disabled);
+        }
+        world.run_schedule(First);
+        world.run_schedule(PreUpdate);
+        world.run_schedule(StateTransition);
+        world.run_schedule(RunFixedMainLoop);
+        //world.run_schedule(Update);
+        world.run_schedule(PostUpdate);
+        world.run_schedule(Last);
+    }
+}
+
+fn run_render_wrapper(world: &mut World) {
+    if world.resource::<AccumulatedTime>().0.as_secs_f32() > 1.0 / 60.0
+        || world.is_resource_added::<AccumulatedTime>()
+    {
+        world.run_schedule(Render);
+    } else {
+        let time_sender = world.resource::<TimeSender>();
+        if let Err(error) = time_sender.0.try_send(Instant::now()) {
+            match error {
+                bevy_time::TrySendError::Full(_) => {
+                    panic!(
+                        "The TimeSender channel should always be empty during render. You might need to add the bevy::core::time_system to your app."
+                    );
+                }
+                bevy_time::TrySendError::Disconnected(_) => {
+                    // ignore disconnected errors, the main world probably just got dropped during shutdown
+                }
+            }
+        }
     }
 }
 

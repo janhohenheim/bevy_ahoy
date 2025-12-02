@@ -4,13 +4,16 @@ use bevy::{
     gltf::GltfPlugin,
     input::common_conditions::input_just_pressed,
     prelude::*,
-    window::{CursorGrabMode, CursorOptions},
+    render::{Render, RenderApp, RenderStartup},
+    window::{CursorGrabMode, CursorOptions, PresentMode, WindowResolution},
 };
 use bevy_ahoy::{PickupHoldConfig, PickupPullConfig, prelude::*};
+use bevy_ecs::schedule::{ExecutorKind, ScheduleBuildSettings, ScheduleLabel};
 use bevy_enhanced_input::prelude::{Press, *};
 use bevy_trenchbroom::prelude::*;
 use bevy_trenchbroom_avian::AvianPhysicsBackend;
 use core::ops::Deref;
+use std::time::{Duration, Instant};
 
 use crate::util::ExampleUtilPlugin;
 
@@ -19,10 +22,20 @@ mod util;
 fn main() -> AppExit {
     App::new()
         .add_plugins((
-            DefaultPlugins.set(GltfPlugin {
-                use_model_forward_direction: true,
-                ..default()
-            }),
+            DefaultPlugins
+                .set(GltfPlugin {
+                    use_model_forward_direction: true,
+                    ..default()
+                })
+                .set(WindowPlugin {
+                    primary_window: Window {
+                        resolution: WindowResolution::new(1920, 1080),
+                        present_mode: PresentMode::Mailbox,
+                        ..default()
+                    }
+                    .into(),
+                    ..default()
+                }),
             PhysicsPlugins::default(),
             EnhancedInputPlugin,
             AhoyPlugin::default(),
