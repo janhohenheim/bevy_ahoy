@@ -41,7 +41,7 @@ fn main() -> AppExit {
                         resolution: WindowResolution::new(1280, 720),
                         #[cfg(not(target_arch = "wasm32"))]
                         resolution: WindowResolution::new(1920, 1080),
-                        present_mode: PresentMode::Mailbox,
+                        present_mode: PresentMode::AutoNoVsync,
                         fit_canvas_to_parent: true,
                         ..default()
                     }

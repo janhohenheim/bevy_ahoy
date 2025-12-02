@@ -7,10 +7,9 @@ use std::{
 
 use avian3d::prelude::*;
 use bevy::{
-    camera::Exposure,
+    camera::{Exposure, visibility::VisibleEntities},
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, light_consts::lux},
-    pbr::Atmosphere,
     platform::collections::HashSet,
     post_process::bloom::Bloom,
     prelude::*,
@@ -20,13 +19,11 @@ use bevy::{
 };
 use bevy_ahoy::{CharacterControllerState, prelude::*};
 use bevy_ecs::{
-    entity_disabling::Disabled,
     schedule::{ExecutorKind, ScheduleLabel},
     world::FilteredEntityRef,
 };
 use bevy_enhanced_input::prelude::{Release, *};
 use bevy_fix_cursor_unlock_web::{FixPointerUnlockPlugin, ForceUnlockCursor};
-use bevy_framepace::FramepacePlugin;
 use bevy_mod_mipmap_generator::{MipmapGeneratorPlugin, generate_mipmaps};
 
 pub(super) struct ExampleUtilPlugin;
@@ -94,6 +91,12 @@ impl Plugin for PlzFixInputDelayPlugin {
                 main_world.resource_mut::<AccumulatedTime>().0 = default();
                 original_extract(main_world, render_world);
             } else {
+                main_world
+                    .query::<&mut VisibleEntities>()
+                    .iter_mut(main_world)
+                    .for_each(|mut entities| {
+                        entities.clear_all();
+                    });
                 original_extract(main_world, render_world);
             }
         });
@@ -115,33 +118,29 @@ fn run_main_wrapper(world: &mut World) {
     if world.resource::<AccumulatedTime>().0.as_secs_f32() > 1.0 / 60.0
         || world.is_resource_added::<AccumulatedTime>()
     {
-        if let Ok(cam) = world
-            .query_filtered::<Entity, (With<Camera3d>, Allow<Disabled>)>()
-            .single(world)
-        {
-            world.entity_mut(cam).remove::<Disabled>();
-        }
         world.run_schedule(Main);
     } else {
-        if let Ok(cam) = world
-            .query_filtered::<Entity, With<Camera3d>>()
-            .single(world)
-        {
-            world.entity_mut(cam).insert(Disabled);
-        }
         world.run_schedule(First);
         world.run_schedule(PreUpdate);
         world.run_schedule(StateTransition);
         world.run_schedule(RunFixedMainLoop);
-        //world.run_schedule(Update);
+        world.run_schedule(Update);
         world.run_schedule(PostUpdate);
         world.run_schedule(Last);
     }
 }
 
 fn run_render_wrapper(world: &mut World) {
-    if world.resource::<AccumulatedTime>().0.as_secs_f32() > 1.0 / 60.0
-        || world.is_resource_added::<AccumulatedTime>()
+    if world.is_resource_added::<AccumulatedTime>()
+        || world
+            .query::<&VisibleEntities>()
+            .iter(world)
+            .any(|entities| {
+                !entities
+                    .entities
+                    .iter()
+                    .any(|(_type_id, entities)| !entities.is_empty())
+            })
     {
         world.run_schedule(Render);
     } else {
@@ -360,7 +359,11 @@ fn tweak_camera(insert: On<Insert, Camera3d>, mut commands: Commands, assets: Re
             fov: 70.0_f32.to_radians(),
             ..default()
         }),
-        Atmosphere::EARTH,
+        //Atmosphere::EARTH,
+        Camera {
+            clear_color: ClearColorConfig::None,
+            ..default()
+        },
         Exposure { ev100: 9.0 },
         Bloom::default(),
         DistanceFog {
