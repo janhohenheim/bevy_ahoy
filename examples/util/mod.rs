@@ -1,6 +1,6 @@
 //! Common functionality for the examples. This is just aesthetic stuff, you don't need to copy any of this into your own projects.
 
-use std::f32::consts::TAU;
+use std::{f32::consts::TAU, time::Instant};
 
 use avian3d::prelude::*;
 use bevy::{
@@ -23,32 +23,37 @@ pub(super) struct ExampleUtilPlugin;
 
 impl Plugin for ExampleUtilPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            MipmapGeneratorPlugin,
-            FixPointerUnlockPlugin,
-            FramepacePlugin,
-        ))
-        .insert_resource(FramepaceSettings::default().with_limiter(Limiter::from_framerate(60.0)))
-        .add_systems(Startup, (setup_ui, spawn_crosshair))
-        .add_systems(
-            Update,
-            (
-                update_debug_text,
-                tweak_materials,
-                generate_mipmaps::<StandardMaterial>,
-            ),
-        )
-        .add_observer(reset_player)
-        .add_observer(tweak_camera)
-        .add_observer(tweak_directional_light)
-        .add_observer(toggle_debug)
-        .add_observer(unlock_cursor_web)
-        .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .insert_resource(AmbientLight::NONE)
-        .add_systems(Update, turn_sun)
-        .add_input_context::<DebugInput>()
-        // For debug printing
-        .register_required_components::<CharacterController, CollidingEntities>();
+        app.add_plugins((MipmapGeneratorPlugin, FixPointerUnlockPlugin))
+            .add_systems(Startup, (setup_ui, spawn_crosshair))
+            .add_systems(
+                Update,
+                (
+                    update_debug_text,
+                    tweak_materials,
+                    generate_mipmaps::<StandardMaterial>,
+                ),
+            )
+            .add_systems(First, spin)
+            .add_observer(reset_player)
+            .add_observer(tweak_camera)
+            .add_observer(tweak_directional_light)
+            .add_observer(toggle_debug)
+            .add_observer(unlock_cursor_web)
+            .insert_resource(DirectionalLightShadowMap { size: 4096 })
+            .insert_resource(AmbientLight::NONE)
+            .add_systems(Update, turn_sun)
+            .add_input_context::<DebugInput>()
+            // For debug printing
+            .register_required_components::<CharacterController, CollidingEntities>();
+    }
+}
+
+fn spin() {
+    let start = Instant::now();
+    loop {
+        if start.elapsed().as_secs_f32() > 1.0 / 60.0 {
+            break;
+        }
     }
 }
 
