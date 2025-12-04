@@ -288,7 +288,6 @@ fn handle_crane(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) -
         ctx.state.crouching = original_crouching;
         return false;
     };
-    ctx.input.craned = None;
 
     // Check wall
     let cast_dir = vel_dir;
@@ -369,10 +368,9 @@ fn handle_crane(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) -
     depenetrate_character(move_and_slide, ctx);
 
     ctx.state.last_step_up.reset();
+    ctx.input.craned = None;
     // Ensure we don't immediately jump on the surface if crane and jump are bound to the same key
     ctx.input.jumped = None;
-    info!(v=?ctx.velocity.0);
-    info!("SUCCESS");
     true
 }
 
