@@ -13,7 +13,7 @@ pub(super) fn plugin(app: &mut App) {
     .add_observer(rotate_camera);
 }
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 #[relationship(relationship_target = CharacterControllerCamera)]
 #[require(AvianPickupActor, Transform)]
 #[component(on_add = Self::on_add)]
@@ -51,7 +51,7 @@ impl CharacterControllerCameraOf {
     }
 }
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 #[relationship_target(relationship = CharacterControllerCameraOf)]
 pub struct CharacterControllerCamera(Entity);
 
