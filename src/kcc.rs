@@ -6,7 +6,7 @@ use bevy_ecs::{
     system::lifetimeless::{Read, Write},
 };
 use core::fmt::Debug;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::{CharacterControllerState, input::AccumulatedInput, prelude::*};
 
@@ -361,7 +361,6 @@ fn handle_crane(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) -
         ctx.velocity.0 = original_velocity;
         ctx.state.touching_entities = original_touching_entities;
         ctx.state.crouching = original_crouching;
-        info!(?hit, ?cast_len, ?vel_dir, "f");
         return false;
     };
     ctx.transform.translation += cast_dir * hit.distance;

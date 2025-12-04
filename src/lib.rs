@@ -185,7 +185,7 @@ impl Default for CharacterController {
             min_step_ledge_space: 0.2,
             coyote_time: Duration::from_millis(150),
             jump_input_buffer: Duration::from_millis(150),
-            crane_input_buffer: Duration::from_millis(500),
+            crane_input_buffer: Duration::from_millis(150),
             mantle_input_buffer: Duration::from_millis(150),
             // Measured from navel to second phalanx of index finger.
             max_mantle_dist: 1.15,
