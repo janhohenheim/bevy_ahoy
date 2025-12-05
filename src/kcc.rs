@@ -6,6 +6,7 @@ use bevy_ecs::{
     system::lifetimeless::{Read, Write},
 };
 use core::fmt::Debug;
+use std::time::Duration;
 use tracing::warn;
 
 use crate::{CharacterControllerState, input::AccumulatedInput, prelude::*};
@@ -595,7 +596,10 @@ fn handle_jump(time: &Time, colliders: &Query<ColliderComponents>, ctx: &mut Ctx
     // v = sqrt( g * 2.0 * 45 )
     let fl_mul = (2.0 * ctx.cfg.gravity * ctx.cfg.jump_height).sqrt();
     ctx.velocity.y = ground_factor * fl_mul;
-    ctx.input.craned = None;
+    if let Some(crane_input) = ctx.input.craned.as_mut() {
+        crane_input
+            .tick((ctx.cfg.crane_input_buffer - ctx.cfg.jump_crane_chain_time).max(Duration::ZERO));
+    }
 
     // TODO: Trigger jump event
 }

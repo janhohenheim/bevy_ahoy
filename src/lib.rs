@@ -145,6 +145,7 @@ pub struct CharacterController {
     pub unground_speed: f32,
     pub coyote_time: Duration,
     pub jump_input_buffer: Duration,
+    pub jump_crane_chain_time: Duration,
     pub crane_input_buffer: Duration,
     pub mantle_input_buffer: Duration,
     pub min_step_ledge_space: f32,
@@ -185,6 +186,7 @@ impl Default for CharacterController {
             min_step_ledge_space: 0.2,
             coyote_time: Duration::from_millis(150),
             jump_input_buffer: Duration::from_millis(150),
+            jump_crane_chain_time: Duration::from_millis(100),
             crane_input_buffer: Duration::from_millis(300),
             mantle_input_buffer: Duration::from_millis(150),
             // Measured from navel to second phalanx of index finger.
