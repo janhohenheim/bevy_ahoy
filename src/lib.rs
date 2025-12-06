@@ -151,8 +151,9 @@ pub struct CharacterController {
     pub min_step_ledge_space: f32,
     pub min_crane_ledge_space: f32,
     pub min_mantle_ledge_space: f32,
-    pub max_mantle_dist: f32,
+    pub mantle_height: f32,
     pub min_crane_cos: f32,
+    pub min_mantle_cos: f32,
     pub crane_speed: f32,
     pub mantle_speed: f32,
 }
@@ -185,6 +186,7 @@ impl Default for CharacterController {
             unground_speed: 10.0,
             step_down_detection_distance: 0.2,
             min_crane_cos: 50.0_f32.to_radians().cos(),
+            min_mantle_cos: 50.0_f32.to_radians().cos(),
             min_step_ledge_space: 0.2,
             min_crane_ledge_space: 0.35,
             min_mantle_ledge_space: 0.5,
@@ -195,8 +197,8 @@ impl Default for CharacterController {
             mantle_input_buffer: Duration::from_millis(150),
             crane_height: 1.5,
             // Measured from navel to second phalanx of index finger.
-            max_mantle_dist: 2.0,
-            crane_speed: 15.0,
+            mantle_height: 2.0,
+            crane_speed: 11.0,
             mantle_speed: 1.0,
         }
     }
@@ -270,7 +272,8 @@ pub struct CharacterControllerState {
     pub last_ground: Stopwatch,
     pub last_step_up: Stopwatch,
     pub last_step_down: Stopwatch,
-    pub in_crane: Option<f32>,
+    pub crane_height_left: Option<f32>,
+    pub mantle_height_left: Option<f32>,
 }
 
 impl Default for CharacterControllerState {
@@ -286,7 +289,8 @@ impl Default for CharacterControllerState {
             last_ground: max_stopwatch(),
             last_step_up: max_stopwatch(),
             last_step_down: max_stopwatch(),
-            in_crane: None,
+            crane_height_left: None,
+            mantle_height_left: None,
         }
     }
 }

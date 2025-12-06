@@ -7,7 +7,7 @@ use bevy_ecs::{
 };
 use core::fmt::Debug;
 use std::time::Duration;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{CharacterControllerState, input::AccumulatedInput, prelude::*};
 
@@ -66,9 +66,13 @@ fn run_kcc(
         start_gravity(&time, &mut ctx);
 
         let wish_velocity = calculate_wish_velocity(&cams, &ctx);
-        update_in_crane(wish_velocity, &time, &move_and_slide, &mut ctx);
-        if ctx.state.in_crane.is_some() {
+        let wish_velocity_3d = calculate_3d_wish_velocity(&cams, &ctx);
+        update_crane_state(wish_velocity, &time, &move_and_slide, &mut ctx);
+        update_mantle_state(wish_velocity, &time, &move_and_slide, &mut ctx);
+        if ctx.state.crane_height_left.is_some() {
             handle_crane_movement(wish_velocity, &time, &move_and_slide, &mut ctx);
+        } else if ctx.state.mantle_height_left.is_some() {
+            handle_mantle_movement(wish_velocity_3d, &time, &move_and_slide, &mut ctx);
         } else {
             handle_jump(&time, &colliders, &mut ctx);
 
@@ -272,7 +276,7 @@ fn handle_crane_movement(
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
 ) {
-    let Some(crane_height) = ctx.state.in_crane else {
+    let Some(crane_height) = ctx.state.crane_height_left else {
         return;
     };
     ctx.state.last_step_up.reset();
@@ -282,7 +286,7 @@ fn handle_crane_movement(
     ctx.velocity.0 += ctx.state.base_velocity;
 
     let Ok((vel_dir, speed)) = Dir3::new_and_length(ctx.velocity.0) else {
-        ctx.state.in_crane = None;
+        ctx.state.crane_height_left = None;
         ctx.velocity.0 -= ctx.state.base_velocity;
         return;
     };
@@ -292,7 +296,7 @@ fn handle_crane_movement(
     } else if let Ok(vel_dir) = Dir3::new(ctx.velocity.0) {
         vel_dir
     } else {
-        ctx.state.in_crane = None;
+        ctx.state.crane_height_left = None;
         ctx.velocity.0 -= ctx.state.base_velocity;
         return;
     };
@@ -301,14 +305,14 @@ fn handle_crane_movement(
     let cast_len = ctx.cfg.min_crane_ledge_space;
     let Some(wall_hit) = cast_move(cast_dir * cast_len, move_and_slide, ctx) else {
         // nothing to move onto
-        ctx.state.in_crane = None;
+        ctx.state.crane_height_left = None;
         ctx.velocity.0 -= ctx.state.base_velocity;
         return;
     };
     let wall_normal = vec3(wall_hit.normal1.x, 0.0, wall_hit.normal1.z).normalize_or_zero();
 
     if (-wall_normal).dot(*wish_dir) < ctx.cfg.min_crane_cos {
-        ctx.state.in_crane = None;
+        ctx.state.crane_height_left = None;
         ctx.velocity.0 -= ctx.state.base_velocity;
         return;
     }
@@ -321,19 +325,19 @@ fn handle_crane_movement(
     ctx.transform.translation += cast_dir * travel_dist;
     depenetrate_character(move_and_slide, ctx);
 
-    *ctx.state.in_crane.as_mut().unwrap() = if top_hit.is_some() {
+    *ctx.state.crane_height_left.as_mut().unwrap() = if top_hit.is_some() {
         0.0
     } else {
         (crane_height - travel_dist).max(0.0)
     };
 
-    if ctx.state.in_crane.unwrap() != 0.0 {
+    if ctx.state.crane_height_left.unwrap() != 0.0 {
         let cast_dir = vel_dir;
         let cast_len = ctx.cfg.min_crane_ledge_space;
         if cast_move(cast_dir * cast_len, move_and_slide, ctx).is_none() {
             ctx.transform.translation += cast_dir * speed * time.delta_secs();
             depenetrate_character(move_and_slide, ctx);
-            ctx.state.in_crane = None;
+            ctx.state.crane_height_left = None;
         }
         ctx.velocity.0 -= ctx.state.base_velocity;
         return;
@@ -342,23 +346,108 @@ fn handle_crane_movement(
     let cast_dir = vel_dir;
     let cast_len = ctx.cfg.min_crane_ledge_space;
     if cast_move(cast_dir * cast_len, move_and_slide, ctx).is_some() {
-        ctx.state.in_crane = None;
+        ctx.state.crane_height_left = None;
         ctx.velocity.0 -= ctx.state.base_velocity;
         return;
     }
     ctx.transform.translation += cast_dir * speed * time.delta_secs();
     depenetrate_character(move_and_slide, ctx);
-    ctx.state.in_crane = None;
+    ctx.state.crane_height_left = None;
     ctx.velocity.0 -= ctx.state.base_velocity;
 }
 
-fn update_in_crane(
+fn handle_mantle_movement(
     wish_velocity: Vec3,
     time: &Time,
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
 ) {
-    if ctx.state.in_crane.is_some() {
+    let Some(mantle_height) = ctx.state.mantle_height_left else {
+        return;
+    };
+    ctx.state.last_step_up.reset();
+    ctx.velocity.y = 0.0;
+    ground_accelerate(wish_velocity, ctx.cfg.acceleration_hz, time, ctx);
+    ctx.velocity.y = 0.0;
+    ctx.velocity.0 += ctx.state.base_velocity;
+
+    // Find closest wall
+    let mut closest_wall = None;
+    move_and_slide.intersections(
+        ctx.state.collider(),
+        ctx.transform.translation,
+        ctx.transform.rotation,
+        // Need a higher distance than skin width since we assume we're corrently not intersecting anything
+        ctx.cfg.move_and_slide.skin_width * 2.0,
+        &ctx.cfg.filter,
+        |contact_point, normal| {
+            if normal.y.abs() < ctx.cfg.min_walk_cos
+                && !closest_wall
+                    .is_some_and(|(penetration, _)| penetration < contact_point.penetration)
+            {
+                closest_wall = Some((contact_point.penetration, normal));
+            }
+            true
+        },
+    );
+    let Some((wall_dist, wall_normal)) = closest_wall else {
+        // floating in air, bail
+        ctx.state.mantle_height_left = None;
+        ctx.velocity.0 -= ctx.state.base_velocity;
+        return;
+    };
+
+    let Ok(wish_dir) = Dir3::new(wish_velocity) else {
+        // Standing still
+        return;
+    };
+
+    let climb_dir = Vec3::Y;
+    let climb_dist = (ctx.cfg.mantle_speed * time.delta_secs() * wish_dir.y).min(mantle_height);
+    let top_hit = cast_move(climb_dir * climb_dist, move_and_slide, ctx);
+    let travel_dist = top_hit.map(|hit| hit.distance).unwrap_or(climb_dist);
+
+    info!(?climb_dist, ?travel_dist);
+    ctx.transform.translation += climb_dir * travel_dist;
+    depenetrate_character(move_and_slide, ctx);
+
+    *ctx.state.mantle_height_left.as_mut().unwrap() = if top_hit.is_some() {
+        0.0
+    } else {
+        // TODO: doesn't work when going down
+        (mantle_height - travel_dist).max(0.0)
+    };
+
+    if ctx.state.mantle_height_left.unwrap() != 0.0 {
+        let cast_len = ctx.cfg.min_mantle_ledge_space;
+        if cast_move(wish_dir * cast_len, move_and_slide, ctx).is_none() {
+            ctx.transform.translation += wish_dir * cast_len * time.delta_secs();
+            depenetrate_character(move_and_slide, ctx);
+            ctx.state.mantle_height_left = None;
+        }
+        ctx.velocity.0 -= ctx.state.base_velocity;
+        return;
+    }
+
+    let cast_len = ctx.cfg.min_mantle_ledge_space;
+    if cast_move(wish_dir * cast_len, move_and_slide, ctx).is_some() {
+        ctx.state.mantle_height_left = None;
+        ctx.velocity.0 -= ctx.state.base_velocity;
+        return;
+    }
+    ctx.transform.translation += wish_dir * cast_len * time.delta_secs();
+    depenetrate_character(move_and_slide, ctx);
+    ctx.state.mantle_height_left = None;
+    ctx.velocity.0 -= ctx.state.base_velocity;
+}
+
+fn update_crane_state(
+    wish_velocity: Vec3,
+    time: &Time,
+    move_and_slide: &MoveAndSlide,
+    ctx: &mut CtxItem,
+) {
+    if ctx.state.crane_height_left.is_some() {
         return;
     }
     let Some(crane_time) = ctx.input.craned.clone() else {
@@ -465,7 +554,124 @@ fn update_in_crane(
     // Ensure we don't immediately jump on the surface if crane and jump are bound to the same key
     ctx.input.jumped = None;
 
-    ctx.state.in_crane = Some(crane_height);
+    ctx.state.crane_height_left = Some(crane_height);
+}
+
+fn update_mantle_state(
+    wish_velocity: Vec3,
+    time: &Time,
+    move_and_slide: &MoveAndSlide,
+    ctx: &mut CtxItem,
+) {
+    if ctx.state.mantle_height_left.is_some() {
+        return;
+    }
+    let Some(mantle_time) = ctx.input.mantled.clone() else {
+        return;
+    };
+    if mantle_time.elapsed() > ctx.cfg.mantle_input_buffer {
+        return;
+    }
+    let original_position = ctx.transform.translation;
+    let original_velocity = ctx.velocity.0;
+
+    let wish_dir = if let Ok(wish_dir) = Dir3::new(wish_velocity) {
+        wish_dir
+    } else if let Ok(vel_dir) = Dir3::new(ctx.velocity.0) {
+        vel_dir
+    } else {
+        ctx.velocity.0 = original_velocity;
+        return;
+    };
+
+    ctx.velocity.y = 0.0;
+    ground_accelerate(wish_velocity, ctx.cfg.acceleration_hz, time, ctx);
+    ctx.velocity.y = 0.0;
+    ctx.velocity.0 += ctx.state.base_velocity;
+
+    // Check wall
+    let cast_dir = wish_dir;
+    let cast_len = ctx.cfg.min_mantle_ledge_space;
+    let Some(wall_hit) = cast_move(cast_dir * cast_len, move_and_slide, ctx) else {
+        // nothing to move onto
+        ctx.velocity.0 = original_velocity;
+        return;
+    };
+    let wall_normal = vec3(wall_hit.normal1.x, 0.0, wall_hit.normal1.z).normalize_or_zero();
+
+    if (-wall_normal).dot(*wish_dir) < ctx.cfg.min_mantle_cos {
+        ctx.velocity.0 = original_velocity;
+        return;
+    }
+
+    // step up
+    let cast_dir = Dir3::Y;
+    let cast_len = ctx.cfg.mantle_height;
+
+    let hit = cast_move(cast_dir * cast_len, move_and_slide, ctx);
+
+    let up_dist = hit.map(|hit| hit.distance).unwrap_or(cast_len);
+    ctx.transform.translation += cast_dir * up_dist;
+
+    // Move onto ledge (penetration explicitly allowed since the ledge can be below a wall)
+    ctx.transform.translation += -wall_normal * ctx.cfg.min_mantle_ledge_space;
+
+    // Move down
+    let cast_dir = Dir3::NEG_Y;
+    let cast_len = up_dist;
+    let Some(down_dist) =
+        cast_move(cast_dir * cast_len, move_and_slide, ctx).map(|hit| hit.distance)
+    else {
+        ctx.transform.translation = original_position;
+        ctx.velocity.0 = original_velocity;
+        return;
+    };
+    let mantle_height = up_dist - down_dist;
+
+    // Okay, we found a potentially mantle!
+    ctx.transform.translation = original_position;
+
+    // step up
+    ctx.transform.translation.y += mantle_height;
+
+    // check the full mantle
+
+    // make sure we have enough space to land
+    let cast_dir = -wall_normal;
+    let cast_len = ctx.cfg.min_mantle_ledge_space;
+    if cast_move(cast_dir * cast_len, move_and_slide, ctx).is_some() {
+        ctx.transform.translation = original_position;
+        ctx.velocity.0 = original_velocity;
+        return;
+    };
+    ctx.transform.translation += cast_dir * cast_len;
+
+    let cast_dir = Dir3::NEG_Y;
+    let cast_len = mantle_height;
+    let hit = cast_move(cast_dir * cast_len, move_and_slide, ctx);
+
+    // If this doesn't hit, our mantle was actually going through geometry. Bail.
+    let Some(hit) = hit else {
+        ctx.transform.translation = original_position;
+        ctx.velocity.0 = original_velocity;
+        return;
+    };
+    if hit.normal1.y < ctx.cfg.min_walk_cos {
+        ctx.transform.translation = original_position;
+        ctx.velocity.0 = original_velocity;
+        return;
+    }
+
+    // Reset KCC from speculative mantle to actual current state
+    ctx.transform.translation = original_position;
+    ctx.velocity.0 = original_velocity;
+
+    ctx.input.craned = None;
+    ctx.input.mantled = None;
+    // Ensure we don't immediately jump on the surface if mantle and jump are bound to the same key
+    ctx.input.jumped = None;
+
+    ctx.state.mantle_height_left = Some(mantle_height);
 }
 
 fn move_character(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) {
@@ -748,6 +954,29 @@ fn calculate_wish_velocity(cams: &Query<&Transform>, ctx: &CtxItem) -> Vec3 {
     let mut right = Vec3::from(orientation.right());
     right.y = 0.0;
     right = right.normalize_or_zero();
+
+    let wish_vel = movement.y * forward + movement.x * right;
+    let wish_dir = wish_vel.normalize_or_zero();
+
+    // clamp the speed lower if ducking
+    let speed = if ctx.state.crouching {
+        ctx.cfg.speed * ctx.cfg.crouch_speed_scale
+    } else {
+        ctx.cfg.speed
+    };
+    wish_dir * speed
+}
+
+#[must_use]
+fn calculate_3d_wish_velocity(cams: &Query<&Transform>, ctx: &CtxItem) -> Vec3 {
+    let orientation = ctx
+        .cam
+        .and_then(|e| cams.get(e.get()).copied().ok())
+        .unwrap_or(*ctx.transform);
+
+    let movement = ctx.input.last_movement.unwrap_or_default();
+    let forward = orientation.forward();
+    let right = orientation.right();
 
     let wish_vel = movement.y * forward + movement.x * right;
     let wish_dir = wish_vel.normalize_or_zero();
