@@ -888,9 +888,6 @@ fn handle_jump(
         let normal = if let Some(hit) =
             cast_move(ctx.velocity.0 * time.delta_secs(), move_and_slide, ctx)
         {
-            // Cancel velocity that would be lost to move_and_slide if tac is buffered
-            let vel_dot = ctx.velocity.0.dot(hit.normal1).min(0.0);
-            ctx.velocity.0 -= vel_dot * hit.normal1;
             hit.normal1
         } else if let Some(hit) = cast_move(wish_velocity * time.delta_secs(), move_and_slide, ctx)
         {
@@ -904,19 +901,28 @@ fn handle_jump(
             return;
         }
         let wish_unit = wish_velocity.normalize();
-        let wish_dot = -wish_unit.dot(normal);
-        if wish_dot > ctx.cfg.max_tac_cos {
+        let wish_dot = wish_unit.dot(normal);
+        if -wish_dot > ctx.cfg.max_tac_cos {
             return;
         }
+        // Cancel velocity that would be lost to move_and_slide if tac is buffered
+        let vel_dot = ctx.velocity.0.dot(normal).min(0.0);
+        ctx.velocity.0 -= vel_dot * normal;
         ctx.state.last_tac.reset();
-        (Vec3::Y * ctx.cfg.tac_jump_factor + normal + wish_unit).normalize()
+
+        let tac_wish = wish_unit - (wish_dot.min(0.0) - 1.0) * normal;
+        // not sure if this is better (reflection)
+        //let tac_wish = wish_unit - (wish_dot.min(0.0) * 2.0) * normal;
+        (Vec3::Y * ctx.cfg.tac_jump_factor + tac_wish).normalize()
     } else {
+        set_grounded(None, colliders, time, ctx);
+        // set last_ground to coyote time to make it not jump again after jumping ungrounds us
+        ctx.state.last_ground.set_elapsed(ctx.cfg.coyote_time);
         Vec3::Y
     };
+
     ctx.input.jumped = None;
-    set_grounded(None, colliders, time, ctx);
-    // set last_ground to coyote time to make it not jump again after jumping ungrounds us
-    ctx.state.last_ground.set_elapsed(ctx.cfg.coyote_time);
+    tracing::info!("jump");
 
     // TODO: read ground's jump factor
     let ground_factor = 1.0;
