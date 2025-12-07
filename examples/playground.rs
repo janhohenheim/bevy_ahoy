@@ -146,6 +146,7 @@ impl PlayerInput {
             .insert(actions!(PlayerInput[
                 (
                     Action::<Movement>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     DeadZone::default(),
                     Bindings::spawn((
                         Cardinal::wasd_keys(),
@@ -154,6 +155,7 @@ impl PlayerInput {
                 ),
                 (
                     Action::<Jump>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     Press::default(),
                     bindings![
                         KeyCode::Space,
@@ -163,6 +165,7 @@ impl PlayerInput {
                 ),
                 (
                     Action::<Crane>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     Press::default(),
                     bindings![
                         KeyCode::Space,
@@ -171,6 +174,7 @@ impl PlayerInput {
                 ),
                 (
                     Action::<Mantle>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     Hold::new(0.2),
                     bindings![
                         KeyCode::Space,
@@ -179,25 +183,30 @@ impl PlayerInput {
                 ),
                 (
                     Action::<Crouch>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger],
                 ),
                 (
                     Action::<PullObject>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     Press::default(),
                     bindings![MouseButton::Right],
                 ),
                 (
                     Action::<DropObject>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     Press::default(),
                     bindings![MouseButton::Right],
                 ),
                 (
                     Action::<ThrowObject>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     Press::default(),
                     bindings![MouseButton::Left],
                 ),
                 (
                     Action::<RotateCamera>::new(),
+                    ActionSettings { consume_input: false, ..default() },
                     Scale::splat(0.05),
                     Bindings::spawn((
                         Spawn(Binding::mouse_motion()),
