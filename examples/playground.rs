@@ -163,7 +163,6 @@ impl PlayerInput {
                 ),
                 (
                     Action::<Tac>::new(),
-                    Hold::new(0.2),
                     bindings![
                         KeyCode::Space,
                         GamepadButton::South,
