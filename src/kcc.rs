@@ -392,9 +392,14 @@ fn handle_mantle_movement(
 
     let climb_dir = Vec3::Y;
     // positive when looking at the wall or above it, negative when looking down
-    let wish_y =
-        (wish_dir.y + 0.5).min(1.0) * ctx.input.last_movement.unwrap_or_default().y.signum();
-    let climb_dist = (ctx.cfg.mantle_speed * time.delta_secs() * wish_y).min(mantle_height);
+    let mut wish_y = (wish_dir.y + 0.5).min(1.0);
+    if wish_y > 0.0 {
+        wish_y *= ctx.input.last_movement.unwrap_or_default().y.signum();
+    }
+    let mut climb_dist = (ctx.cfg.mantle_speed * time.delta_secs() * wish_y).min(mantle_height);
+    if mantle_height - climb_dist > ctx.cfg.mantle_height {
+        climb_dist = mantle_height - ctx.cfg.mantle_height;
+    }
 
     let top_hit = cast_move(climb_dir * climb_dist, move_and_slide, ctx);
     let travel_dist =
