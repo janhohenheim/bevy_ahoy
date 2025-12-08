@@ -593,7 +593,6 @@ fn update_mantle_state(
         return;
     }
     if ctx.state.mantle_height_left.is_some() {
-        info!("a");
         return;
     }
     let Some(mantle_time) = ctx.input.mantled.clone() else {
@@ -606,6 +605,7 @@ fn update_mantle_state(
     else {
         return;
     };
+    info!("a");
 
     ctx.input.craned = None;
     ctx.input.mantled = None;
