@@ -10,6 +10,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_observer(apply_jump)
         .add_observer(apply_tac)
         .add_observer(apply_crouch)
+        .add_observer(apply_swim_up)
         .add_observer(apply_drop)
         .add_observer(apply_pull)
         .add_observer(apply_throw)
@@ -31,6 +32,10 @@ pub struct Movement;
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct Jump;
+
+#[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct SwimUp;
 
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
@@ -76,6 +81,8 @@ pub struct AccumulatedInput {
     pub last_movement: Option<Vec2>,
     // Time since the last jump input. Will be `None` once the jump was processed.
     pub jumped: Option<Stopwatch>,
+    // Whether any frame since the last fixed update loop input a swim up
+    pub swim_up: bool,
     // Time since the last tac input. Will be `None` once the tac was processed.
     pub tac: Option<Stopwatch>,
     // Whether any frame since the last fixed update loop input a crouch
@@ -96,6 +103,12 @@ fn apply_movement(
 fn apply_jump(jump: On<Fire<Jump>>, mut accumulated_inputs: Query<&mut AccumulatedInput>) {
     if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(jump.context) {
         accumulated_inputs.jumped = Some(Stopwatch::new());
+    }
+}
+
+fn apply_swim_up(swim_up: On<Fire<SwimUp>>, mut accumulated_inputs: Query<&mut AccumulatedInput>) {
+    if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(swim_up.context) {
+        accumulated_inputs.swim_up = true;
     }
 }
 
@@ -176,6 +189,7 @@ fn clear_accumulated_input(mut accumulated_inputs: Query<&mut AccumulatedInput>)
         *accumulated_input = AccumulatedInput {
             last_movement: default(),
             jumped: accumulated_input.jumped.clone(),
+            swim_up: accumulated_input.swim_up.clone(),
             tac: accumulated_input.tac.clone(),
             craned: accumulated_input.craned.clone(),
             mantled: accumulated_input.mantled.clone(),

@@ -86,15 +86,12 @@ fn run_kcc(
 
             // Friction is handled before we add in any base velocity. That way, if we are on a conveyor,
             //  we don't slow when standing still, relative to the conveyor.
-            if ctx.state.grounded.is_some() {
-                ctx.velocity.y = 0.0;
-                friction(&time, &mut ctx);
-            }
+            friction(&time, &mut ctx);
 
             validate_velocity(&mut ctx);
 
             if ctx.water.level > WaterLevel::Feet {
-                water_move(wish_velocity, &time, &move_and_slide, &mut ctx);
+                water_move(wish_velocity_3d, &time, &move_and_slide, &mut ctx);
             } else if ctx.state.grounded.is_some() {
                 ground_move(wish_velocity, &time, &move_and_slide, &mut ctx);
             } else {
@@ -105,7 +102,9 @@ fn run_kcc(
         update_grounded(&move_and_slide, &colliders, &time, &mut ctx);
         validate_velocity(&mut ctx);
 
-        finish_gravity(&time, &mut ctx);
+        if ctx.water.level < WaterLevel::Waist {
+            finish_gravity(&time, &mut ctx);
+        }
 
         if ctx.state.grounded.is_some() {
             ctx.velocity.y = ctx.state.base_velocity.y;
@@ -208,14 +207,46 @@ fn air_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx: &
     ctx.velocity.0 += accel_speed * wish_dir;
 }
 
-fn water_move(wish_velocity: Vec3, time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) {
-    let wish_velocity = wish_velocity;
-    air_accelerate(wish_velocity, ctx.cfg.water_acceleration_hz, time, ctx);
+fn water_move(
+    mut wish_velocity: Vec3,
+    time: &Time,
+    move_and_slide: &MoveAndSlide,
+    ctx: &mut CtxItem,
+) {
+    if ctx.input.swim_up {
+        ctx.input.swim_up = false;
+        wish_velocity += Vec3::Y * ctx.cfg.speed;
+    };
+    if wish_velocity == Vec3::ZERO {
+        wish_velocity -= Vec3::Y * ctx.cfg.water_gravity;
+    };
+    wish_velocity *= 0.8;
+
+    water_accelerate(wish_velocity, ctx.cfg.water_acceleration_hz, time, ctx);
     ctx.velocity.0 += ctx.state.base_velocity;
 
     step_move(time, move_and_slide, ctx);
 
     ctx.velocity.0 -= ctx.state.base_velocity;
+}
+
+fn water_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx: &mut CtxItem) {
+    let Ok((wish_dir, wish_speed)) = Dir3::new_and_length(wish_velocity) else {
+        return;
+    };
+    let current_speed = ctx.velocity.dot(*wish_dir);
+    let add_speed = wish_speed - current_speed;
+
+    if add_speed <= 0.0 {
+        return;
+    }
+
+    // TODO: read this from ground
+    let surface_friction = 1.0;
+    let accel_speed = wish_speed * acceleration_hz * time.delta_secs() * surface_friction;
+    let accel_speed = f32::min(accel_speed, add_speed);
+
+    ctx.velocity.0 += accel_speed * wish_dir;
 }
 
 fn step_move(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) {
@@ -951,10 +982,14 @@ fn friction(time: &Time, ctx: &mut CtxItem) {
 
     let mut drop = 0.0;
     // apply ground friction
-    if ctx.state.grounded.is_some() {
+    if ctx.state.grounded.is_some() || ctx.water.level > WaterLevel::Feet {
         // TODO: read ground's friction
         let surface_friction = 1.0;
-        let friction = ctx.cfg.friction_hz * surface_friction;
+        let friction = if ctx.water.level > WaterLevel::Feet {
+            ctx.cfg.water_friction_hz * surface_friction
+        } else {
+            ctx.cfg.friction_hz * surface_friction
+        };
         let control = f32::max(speed, ctx.cfg.stop_speed);
         drop += control * friction * time.delta_secs();
     }

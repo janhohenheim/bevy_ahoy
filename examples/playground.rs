@@ -203,6 +203,11 @@ impl PlayerInput {
                     bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger],
                 ),
                 (
+                    Action::<SwimUp>::new(),
+                    ActionSettings { consume_input: false, ..default() },
+                    bindings![KeyCode::Space, GamepadButton::South],
+                ),
+                (
                     Action::<PullObject>::new(),
                     ActionSettings { consume_input: false, ..default() },
                     Press::default(),
