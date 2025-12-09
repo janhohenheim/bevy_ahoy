@@ -293,7 +293,7 @@ pub struct CharacterControllerState {
     pub last_step_up: Stopwatch,
     pub last_step_down: Stopwatch,
     pub crane_height_left: Option<f32>,
-    pub mantle_height_left: Option<f32>,
+    pub mantle_height_left: Option<(Dir3, f32)>,
 }
 
 impl Default for CharacterControllerState {

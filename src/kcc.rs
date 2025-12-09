@@ -7,7 +7,7 @@ use bevy_ecs::{
 };
 use core::fmt::Debug;
 use core::time::Duration;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{CharacterControllerState, input::AccumulatedInput, prelude::*};
 
@@ -360,18 +360,10 @@ fn handle_mantle_movement(
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
 ) {
-    let Some(mantle_height) = ctx.state.mantle_height_left else {
+    let Some((wall_normal, mantle_height)) = ctx.state.mantle_height_left else {
         return;
     };
 
-    // Find closest wall
-    let closest_wall =
-        closest_wall_normal(ctx.cfg.move_and_slide.skin_width * 2.0, move_and_slide, ctx);
-    let Some((_wall_point, _wall_normal)) = closest_wall else {
-        // floating in air, bail
-        ctx.state.mantle_height_left = None;
-        return;
-    };
     let Ok(wish_dir) = Dir3::new(wish_velocity) else {
         // Standing still
         return;
@@ -393,7 +385,7 @@ fn handle_mantle_movement(
     ctx.velocity.0 = climb_dir * travel_dist / time.delta_secs();
     move_character(time, move_and_slide, ctx);
 
-    *ctx.state.mantle_height_left.as_mut().unwrap() = mantle_height - travel_dist;
+    ctx.state.mantle_height_left.as_mut().unwrap().1 = mantle_height - travel_dist;
     if climb_dist > 0.0 {
         ctx.state.last_step_up.reset();
     } else {
@@ -604,14 +596,12 @@ fn available_mantle_height(
     time: &Time,
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
-) -> Option<f32> {
+) -> Option<(Dir3, f32)> {
     let original_position = ctx.transform.translation;
     let original_velocity = ctx.velocity.0;
 
     let wish_dir = if let Ok(wish_dir) = Dir3::new(wish_velocity) {
         wish_dir
-    } else if let Ok(vel_dir) = Dir3::new(vec3(ctx.velocity.x, 0.0, ctx.velocity.z)) {
-        vel_dir
     } else if let Ok(fwd) = Dir3::new(vec3(
         ctx.state.orientation.forward().x,
         0.0,
@@ -635,7 +625,7 @@ fn available_mantle_height(
         ctx.velocity.0 = original_velocity;
         return None;
     };
-    let wall_normal = vec3(wall_hit.normal1.x, 0.0, wall_hit.normal1.z).normalize_or_zero();
+    let wall_normal = Dir3::new_unchecked(wall_hit.normal1);
 
     if (-wall_normal).dot(*wish_dir) < ctx.cfg.min_mantle_cos {
         ctx.velocity.0 = original_velocity;
@@ -714,7 +704,7 @@ fn available_mantle_height(
         return None;
     }
 
-    Some(mantle_height)
+    Some((wall_normal, mantle_height))
 }
 
 fn move_character(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) {
