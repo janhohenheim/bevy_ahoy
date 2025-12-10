@@ -1041,6 +1041,9 @@ fn handle_tac(
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
 ) -> Option<Vec3> {
+    if ctx.state.mantle_progress.is_some() {
+        return None;
+    }
     let tac_time = ctx.input.tac.clone()?;
     if tac_time.elapsed() > ctx.cfg.tac_input_buffer {
         return None;
@@ -1110,7 +1113,7 @@ fn handle_jump(
     let jumpdir =
         if ctx.state.grounded.is_none() && ctx.state.last_ground.elapsed() > ctx.cfg.coyote_time {
             if let Some(tac_dir) = handle_tac(wish_velocity, time, move_and_slide, ctx) {
-                tac_dir
+                dbg!(tac_dir)
             } else if let Some(ledge_jump_dir) = handle_ledge_jump_dir(ctx) {
                 ledge_jump_dir
             } else {
