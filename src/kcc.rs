@@ -456,8 +456,7 @@ fn handle_mantle_movement(
     }
 
     let climb_dir = Vec3::Y;
-    // positive when looking at the wall or above it, negative when looking down
-    let wish_y = rescale_climb_cos(wish_dir.y);
+    let wish_y = calc_climb_factor(ctx);
 
     let mut climb_dist =
         (ctx.cfg.mantle_speed * time.delta_secs() * wish_y).min(mantle.height_left);
@@ -484,8 +483,12 @@ fn handle_mantle_movement(
     }
 }
 
-fn rescale_climb_cos(cos: f32) -> f32 {
-    ((cos + 0.5) * 2.5).clamp(-1.0, 1.0)
+fn calc_climb_factor(ctx: &CtxItem) -> f32 {
+    // positive when looking at the wall or above it, negative when looking down
+    let movement = ctx.input.last_movement.unwrap_or_default().y;
+    let cos = (ctx.state.orientation.forward() * movement.abs()).y;
+    let factor = ((cos + 0.5) * 2.5).clamp(-1.0, 1.0);
+    if movement < 0.0 { -factor } else { factor }
 }
 
 fn update_crane_state(
