@@ -170,6 +170,7 @@ pub struct CharacterController {
     pub mantle_speed: f32,
     pub min_ledge_grab_space: Cuboid,
     pub climb_pull_up_height: f32,
+    pub max_ledge_grab_distance: f32,
 }
 
 impl Default for CharacterController {
@@ -216,13 +217,14 @@ impl Default for CharacterController {
             jump_input_buffer: Duration::from_millis(150),
             jump_crane_chain_time: Duration::from_millis(140),
             crane_input_buffer: Duration::from_millis(200),
-            mantle_input_buffer: Duration::from_millis(150),
+            mantle_input_buffer: Duration::from_millis(50),
             crane_height: 1.5,
             mantle_height: 1.0,
             crane_speed: 11.0,
             mantle_speed: 5.0,
             min_ledge_grab_space: Cuboid::new(0.2, 0.1, 0.2),
             climb_pull_up_height: 0.3,
+            max_ledge_grab_distance: 0.5,
         }
     }
 }
@@ -303,7 +305,7 @@ pub struct CharacterControllerState {
     pub last_step_up: Stopwatch,
     pub last_step_down: Stopwatch,
     pub crane_height_left: Option<f32>,
-    pub mantle_height_left: Option<f32>,
+    pub mantle_progress: Option<MantleProgress>,
 }
 
 impl Default for CharacterControllerState {
@@ -324,9 +326,17 @@ impl Default for CharacterControllerState {
             last_step_up: max_stopwatch(),
             last_step_down: max_stopwatch(),
             crane_height_left: None,
-            mantle_height_left: None,
+            mantle_progress: None,
         }
     }
+}
+
+#[derive(Clone, Copy, Reflect, Debug)]
+pub struct MantleProgress {
+    pub wall_normal: Dir3,
+    pub ledge_position: Vec3,
+    pub height_left: f32,
+    pub wall_entity: Entity,
 }
 
 fn max_stopwatch() -> Stopwatch {

@@ -9,7 +9,7 @@ use core::fmt::Debug;
 use core::time::Duration;
 use tracing::warn;
 
-use crate::{CharacterControllerState, input::AccumulatedInput, prelude::*};
+use crate::{CharacterControllerState, MantleProgress, input::AccumulatedInput, prelude::*};
 
 pub(super) fn plugin(schedule: Interned<dyn ScheduleLabel>) -> impl Fn(&mut App) {
     move |app: &mut App| {
@@ -79,8 +79,14 @@ fn run_kcc(
         update_mantle_state(wish_velocity, &time, &move_and_slide, &mut ctx);
         if ctx.state.crane_height_left.is_some() {
             handle_crane_movement(wish_velocity, &time, &move_and_slide, &mut ctx);
-        } else if ctx.state.mantle_height_left.is_some() {
-            handle_mantle_movement(wish_velocity_3d, &time, &move_and_slide, &mut ctx);
+        } else if ctx.state.mantle_progress.is_some() {
+            handle_mantle_movement(
+                wish_velocity_3d,
+                &time,
+                &move_and_slide,
+                &colliders,
+                &mut ctx,
+            );
         } else {
             handle_jump(wish_velocity, &time, &colliders, &move_and_slide, &mut ctx);
 
@@ -404,42 +410,67 @@ fn handle_mantle_movement(
     wish_velocity: Vec3,
     time: &Time,
     move_and_slide: &MoveAndSlide,
+    colliders: &Query<ColliderComponents>,
     ctx: &mut CtxItem,
 ) {
-    let Some(mantle_height) = ctx.state.mantle_height_left else {
+    let Some(mantle) = ctx.state.mantle_progress else {
         return;
     };
 
-    // Find closest wall
-    let closest_wall =
-        closest_wall_normal(ctx.cfg.move_and_slide.skin_width * 2.0, move_and_slide, ctx);
-    let Some((_wall_point, _wall_normal)) = closest_wall else {
-        // floating in air, bail
-        ctx.state.mantle_height_left = None;
-        return;
-    };
+    ctx.velocity.0 = Vec3::ZERO;
     let Ok(wish_dir) = Dir3::new(wish_velocity) else {
         // Standing still
         return;
     };
+    let Some((_wall_point, wall_normal)) =
+        closest_wall_normal(ctx.cfg.move_and_slide.skin_width * 2.0, move_and_slide, ctx)
+    else {
+        ctx.state.mantle_progress = None;
+        return;
+    };
+    let Some(hit) = cast_move(
+        -wall_normal * ctx.cfg.move_and_slide.skin_width * 2.0,
+        move_and_slide,
+        ctx,
+    ) else {
+        ctx.state.mantle_progress = None;
+        return;
+    };
+
+    {
+        let progress = ctx.state.mantle_progress.as_mut().unwrap();
+        progress.wall_normal = wall_normal;
+        progress.ledge_position = hit.point1;
+        progress.wall_entity = hit.entity;
+        if let Ok(platform) = colliders.get(progress.wall_entity) {
+            let platform_movement =
+                calculate_platform_movement(mantle.ledge_position, &platform, time, ctx);
+            ctx.state.base_velocity = platform_movement / time.delta_secs();
+        }
+    }
 
     let climb_dir = Vec3::Y;
     // positive when looking at the wall or above it, negative when looking down
     let wish_y = rescale_climb_cos(wish_dir.y);
 
-    let mut climb_dist = (ctx.cfg.mantle_speed * time.delta_secs() * wish_y).min(mantle_height);
-    if mantle_height - climb_dist > ctx.cfg.mantle_height - ctx.cfg.min_ledge_grab_space.size().y {
-        climb_dist = mantle_height - ctx.cfg.mantle_height + ctx.cfg.min_ledge_grab_space.size().y;
+    let mut climb_dist =
+        (ctx.cfg.mantle_speed * time.delta_secs() * wish_y).min(mantle.height_left);
+    if mantle.height_left - climb_dist
+        > ctx.cfg.mantle_height - ctx.cfg.min_ledge_grab_space.size().y
+    {
+        climb_dist =
+            mantle.height_left - ctx.cfg.mantle_height + ctx.cfg.min_ledge_grab_space.size().y;
     }
 
     let top_hit = cast_move(climb_dir * climb_dist, move_and_slide, ctx);
     let travel_dist =
         top_hit.map(|hit| hit.distance).unwrap_or(climb_dist.abs()) * climb_dist.signum();
 
-    ctx.velocity.0 = climb_dir * travel_dist / time.delta_secs();
+    ctx.velocity.0 = climb_dir * travel_dist / time.delta_secs() + ctx.state.base_velocity;
     move_character(time, move_and_slide, ctx);
+    ctx.velocity.0 -= ctx.state.base_velocity;
 
-    *ctx.state.mantle_height_left.as_mut().unwrap() = mantle_height - travel_dist;
+    ctx.state.mantle_progress.as_mut().unwrap().height_left = mantle.height_left - travel_dist;
     if climb_dist > 0.0 {
         ctx.state.last_step_up.reset();
     } else {
@@ -459,7 +490,7 @@ fn update_crane_state(
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
 ) {
-    if ctx.state.mantle_height_left.is_none() {
+    if ctx.state.mantle_progress.is_none() {
         let Some(crane_time) = ctx.input.craned.clone() else {
             return;
         };
@@ -480,7 +511,7 @@ fn update_crane_state(
     ctx.input.mantled = None;
     ctx.input.tac = None;
 
-    ctx.state.mantle_height_left = None;
+    ctx.state.mantle_progress = None;
     ctx.state.crane_height_left = Some(crane_height);
 }
 
@@ -614,13 +645,13 @@ fn update_mantle_state(
     ctx: &mut CtxItem,
 ) {
     if ctx.state.crane_height_left.is_some() {
-        ctx.state.mantle_height_left = None;
+        ctx.state.mantle_progress = None;
         return;
     }
-    if ctx.state.mantle_height_left.is_some() {
+    if ctx.state.mantle_progress.is_some() {
         if ctx.input.jumped.is_some() {
             ctx.input.jumped = None;
-            ctx.state.mantle_height_left = None;
+            ctx.state.mantle_progress = None;
         }
         return;
     }
@@ -642,7 +673,7 @@ fn update_mantle_state(
     // Ensure we don't immediately jump on the surface if mantle and jump are bound to the same key
     ctx.input.jumped = None;
 
-    ctx.state.mantle_height_left = Some(mantle_height);
+    ctx.state.mantle_progress = Some(mantle_height);
 }
 
 fn available_mantle_height(
@@ -650,14 +681,12 @@ fn available_mantle_height(
     time: &Time,
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
-) -> Option<f32> {
+) -> Option<MantleProgress> {
     let original_position = ctx.transform.translation;
     let original_velocity = ctx.velocity.0;
 
     let wish_dir = if let Ok(wish_dir) = Dir3::new(wish_velocity) {
         wish_dir
-    } else if let Ok(vel_dir) = Dir3::new(vec3(ctx.velocity.x, 0.0, ctx.velocity.z)) {
-        vel_dir
     } else if let Ok(fwd) = Dir3::new(vec3(
         ctx.state.orientation.forward().x,
         0.0,
@@ -681,7 +710,7 @@ fn available_mantle_height(
         ctx.velocity.0 = original_velocity;
         return None;
     };
-    let wall_normal = vec3(wall_hit.normal1.x, 0.0, wall_hit.normal1.z).normalize_or_zero();
+    let wall_normal = Dir3::new_unchecked(wall_hit.normal1);
 
     if (-wall_normal).dot(*wish_dir) < ctx.cfg.min_mantle_cos {
         ctx.velocity.0 = original_velocity;
@@ -760,7 +789,12 @@ fn available_mantle_height(
         return None;
     }
 
-    Some(mantle_height)
+    Some(MantleProgress {
+        wall_normal,
+        ledge_position: hit.point1,
+        height_left: mantle_height,
+        wall_entity: hit.entity,
+    })
 }
 
 fn move_character(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) {
@@ -931,12 +965,14 @@ fn set_grounded(
         && let Some(old_ground) = old_ground
         && let Ok(platform) = colliders.get(old_ground.entity)
     {
-        let platform_movement = calculate_platform_movement(old_ground, &platform, time, ctx);
+        let platform_movement =
+            calculate_platform_movement(old_ground.point1, &platform, time, ctx);
         ctx.state.base_velocity = platform_movement / time.delta_secs();
     } else if let Some(new_ground) = new_ground
         && let Ok(platform) = colliders.get(new_ground.entity)
     {
-        let platform_movement = calculate_platform_movement(new_ground, &platform, time, ctx);
+        let platform_movement =
+            calculate_platform_movement(new_ground.point1, &platform, time, ctx);
         ctx.state.base_velocity = platform_movement / time.delta_secs();
     }
 
@@ -949,7 +985,7 @@ fn set_grounded(
 
 #[must_use]
 fn calculate_platform_movement(
-    ground: MoveHitData,
+    ground: Vec3,
     platform: &ColliderComponentsReadOnlyItem,
     time: &Time,
     ctx: &CtxItem,
@@ -964,7 +1000,7 @@ fn calculate_platform_movement(
             Quat::from_scaled_axis(platform.ang_vel.0 * time.delta_secs()) * platform.rot.0,
         );
     let mut touch_point = ctx.transform.translation;
-    touch_point.y = ground.point1.y;
+    touch_point.y = ground.y;
 
     next_platform_transform.transform_point(
         platform_transform

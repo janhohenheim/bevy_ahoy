@@ -3,6 +3,16 @@
 [![crates.io](https://img.shields.io/crates/v/bevy_ahoy)](https://crates.io/crates/bevy_ahoy)
 [![docs.rs](https://docs.rs/bevy_ahoy/badge.svg)](https://docs.rs/bevy_ahoy)
 
+
+> \[!IMPORTANT\]  
+> Bevy Ahoy makes use of an unreleased avian version.
+>
+> To ensure it works you'll need to add a patch in your Cargo.toml
+> ```toml
+> [patch.crates-io]
+> avian3d = { git = "https://github.com/avianphysics/avian" }
+> ```
+
 A fun 3D Kinematic Character Controller for [Bevy](https://github.com/bevyengine/bevy) + [Avian](https://github.com/avianphysics/avian) + [BEI](https://github.com/simgine/bevy_enhanced_input).
 
 <https://github.com/user-attachments/assets/ad1648d9-8a3d-43a6-9e20-886d6bb2eaad>

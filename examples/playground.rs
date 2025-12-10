@@ -185,12 +185,11 @@ impl PlayerInput {
                 ),
                 (
                     Action::<Mantle>::new(),
-                    ActionSettings { consume_input: false, ..default() },
-                    Hold::new(0.2),
+                    ActionSettings { consume_input: true, ..default() },
+                    Hold::new(0.3),
                     bindings![
                         KeyCode::Space,
                         GamepadButton::South,
-                        Binding::mouse_wheel(),
                     ],
                 ),
                 (
