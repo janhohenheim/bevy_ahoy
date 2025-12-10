@@ -1,5 +1,14 @@
 # Bevy Ahoy!
 
+> [!IMPORTANT]  
+> Bevy Ahoy makes use of an unreleased avian version.
+>
+> To ensure it works you'll need to patch it in your Cargo.toml
+> ```toml
+> [patch.crates-io]
+> avian3d = { git = "https://github.com/avianphysics/avian" }
+> ```
+
 [![crates.io](https://img.shields.io/crates/v/bevy_ahoy)](https://crates.io/crates/bevy_ahoy)
 [![docs.rs](https://docs.rs/bevy_ahoy/badge.svg)](https://docs.rs/bevy_ahoy)
 
