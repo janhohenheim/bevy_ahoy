@@ -185,7 +185,7 @@ impl PlayerInput {
                 ),
                 (
                     Action::<Mantle>::new(),
-                    ActionSettings { consume_input: true, ..default() },
+                    ActionSettings { consume_input: false, ..default() },
                     Hold::new(0.3),
                     bindings![
                         KeyCode::Space,
