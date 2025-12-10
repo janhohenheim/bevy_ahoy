@@ -152,6 +152,8 @@ pub struct CharacterController {
     pub tac_power: f32,
     pub tac_jump_factor: f32,
     pub tac_input_buffer: Duration,
+    pub ledge_jump_power: f32,
+    pub ledge_jump_factor: f32,
     pub max_tac_cos: f32,
     pub max_air_wish_speed: f32,
     pub tac_cooldown: Duration,
@@ -203,6 +205,8 @@ impl Default for CharacterController {
             jump_height: 1.8,
             tac_power: 0.755,
             tac_jump_factor: 1.0,
+            ledge_jump_power: 1.5,
+            ledge_jump_factor: 0.8,
             tac_input_buffer: Duration::from_millis(150),
             max_tac_cos: 40.0_f32.to_radians().cos(),
             max_air_wish_speed: 0.76,
@@ -225,7 +229,7 @@ impl Default for CharacterController {
             mantle_speed: 5.0,
             min_ledge_grab_space: Cuboid::new(0.2, 0.1, 0.2),
             climb_pull_up_height: 0.3,
-            max_ledge_grab_distance: 0.5,
+            max_ledge_grab_distance: 0.3,
         }
     }
 }

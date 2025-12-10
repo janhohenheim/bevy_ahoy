@@ -83,6 +83,7 @@ fn run_kcc(
         if ctx.state.crane_height_left.is_some() {
             handle_crane_movement(wish_velocity, &time, &move_and_slide, &mut ctx);
         } else if ctx.state.mantle_progress.is_some() {
+            handle_jump(wish_velocity, &time, &colliders, &move_and_slide, &mut ctx);
             handle_mantle_movement(
                 wish_velocity_3d,
                 &time,
@@ -423,18 +424,17 @@ fn handle_mantle_movement(
     };
 
     ctx.velocity.0 = Vec3::ZERO;
-    let Ok(wish_dir) = Dir3::new(wish_velocity) else {
-        // Standing still
+    if wish_velocity.length_squared() < 0.001 {
         return;
     };
     let Some((_wall_point, wall_normal)) =
-        closest_wall_normal(ctx.cfg.move_and_slide.skin_width * 2.0, move_and_slide, ctx)
+        closest_wall_normal(ctx.cfg.max_ledge_grab_distance, move_and_slide, ctx)
     else {
         ctx.state.mantle_progress = None;
         return;
     };
     let Some(hit) = cast_move(
-        -wall_normal * ctx.cfg.move_and_slide.skin_width * 2.0,
+        -wall_normal * ctx.cfg.max_ledge_grab_distance,
         move_and_slide,
         ctx,
     ) else {
@@ -455,8 +455,7 @@ fn handle_mantle_movement(
     }
 
     let climb_dir = Vec3::Y;
-    // positive when looking at the wall or above it, negative when looking down
-    let wish_y = rescale_climb_cos(wish_dir.y);
+    let wish_y = calc_climb_factor(ctx);
 
     let mut climb_dist =
         (ctx.cfg.mantle_speed * time.delta_secs() * wish_y).min(mantle.height_left);
@@ -483,10 +482,12 @@ fn handle_mantle_movement(
     }
 }
 
-fn rescale_climb_cos(cos: f32) -> f32 {
-    let signum = cos.signum();
-    let cos = cos.abs();
-    ((cos + 0.5) * 2.5).clamp(-1.0, 1.0) * signum
+fn calc_climb_factor(ctx: &CtxItem) -> f32 {
+    // positive when looking at the wall or above it, negative when looking down
+    let movement = ctx.input.last_movement.unwrap_or_default().y;
+    let cos = (ctx.state.orientation.forward() * movement.abs()).y;
+    let factor = ((cos + 0.5) * 2.5).clamp(-1.0, 1.0);
+    if movement < 0.0 { -factor } else { factor }
 }
 
 fn update_crane_state(
@@ -495,13 +496,11 @@ fn update_crane_state(
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
 ) {
-    if ctx.state.mantle_progress.is_none() {
-        let Some(crane_time) = ctx.input.craned.clone() else {
-            return;
-        };
-        if crane_time.elapsed() > ctx.cfg.crane_input_buffer {
-            return;
-        }
+    let Some(crane_time) = ctx.input.craned.clone() else {
+        return;
+    };
+    if crane_time.elapsed() > ctx.cfg.crane_input_buffer {
+        return;
     }
 
     let Some(crane_height) = available_crane_height(wish_velocity, time, move_and_slide, ctx)
@@ -654,10 +653,6 @@ fn update_mantle_state(
         return;
     }
     if ctx.state.mantle_progress.is_some() {
-        if ctx.input.jumped.is_some() {
-            ctx.input.jumped = None;
-            ctx.state.mantle_progress = None;
-        }
         return;
     }
 
@@ -709,7 +704,7 @@ fn available_mantle_height(
 
     // Check wall
     let cast_dir = wish_dir;
-    let cast_len = ctx.cfg.move_and_slide.skin_width * 2.0;
+    let cast_len = ctx.cfg.max_ledge_grab_distance;
     let Some(wall_hit) = cast_move(cast_dir * cast_len, move_and_slide, ctx) else {
         // nothing to move onto
         ctx.velocity.0 = original_velocity;
@@ -982,6 +977,9 @@ fn set_grounded(
     }
 
     ctx.state.grounded = new_ground;
+    if ctx.state.grounded.is_some() {
+        ctx.state.mantle_progress = None;
+    }
 
     if ctx.state.grounded.is_some() {
         ctx.velocity.y = 0.0;
@@ -1048,6 +1046,9 @@ fn handle_tac(
     move_and_slide: &MoveAndSlide,
     ctx: &mut CtxItem,
 ) -> Option<Vec3> {
+    if ctx.state.mantle_progress.is_some() {
+        return None;
+    }
     let tac_time = ctx.input.tac.clone()?;
     if tac_time.elapsed() > ctx.cfg.tac_input_buffer {
         return None;
@@ -1085,6 +1086,28 @@ fn handle_tac(
     Some(tac_dir * groundedness * ctx.cfg.tac_power)
 }
 
+fn handle_ledge_jump_dir(ctx: &mut CtxItem) -> Option<Vec3> {
+    if ctx.state.mantle_progress.is_none()
+        || ctx
+            .input
+            .mantled
+            .as_ref()
+            .is_some_and(|m| m.elapsed() < ctx.cfg.mantle_input_buffer)
+        || ctx.input.jumped.is_none()
+    {
+        return None;
+    }
+    let fwd = ctx.state.orientation.forward();
+    let flat_fwd = Dir3::new(vec3(fwd.x, 0.0, fwd.z)).ok()?;
+    let tac_dir = if ctx.input.last_movement.unwrap_or_default().y >= 0.0 {
+        Dir3::new(Vec3::Y * ctx.cfg.ledge_jump_factor + *flat_fwd).ok()?
+    } else {
+        Dir3::NEG_Y
+    };
+    ctx.state.mantle_progress = None;
+    Some(tac_dir * ctx.cfg.ledge_jump_power)
+}
+
 fn handle_jump(
     wish_velocity: Vec3,
     time: &Time,
@@ -1097,6 +1120,8 @@ fn handle_jump(
         if ctx.state.grounded.is_none() && ctx.state.last_ground.elapsed() > ctx.cfg.coyote_time {
             if let Some(tac_dir) = handle_tac(wish_velocity, time, move_and_slide, ctx) {
                 tac_dir
+            } else if let Some(ledge_jump_dir) = handle_ledge_jump_dir(ctx) {
+                ledge_jump_dir
             } else {
                 return;
             }

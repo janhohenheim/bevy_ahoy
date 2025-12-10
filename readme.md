@@ -42,10 +42,10 @@ This tradeoff allows Ahoy to fully define its own separate model of how a charac
 - [x] **Be pushed**: Stand next to a moving kinematic rigid body to be pushed by it. Put the player in peril by surrounding them with approaching walls!
 - [x] **Moving platforms**: Step onto moving kinematic rigid bodies to move with them. Useful for elevators, conveyor belts, etc.
 - [ ] **Events**: observe events for jump start, landing, stair stepping, etc. to add sound effects, particles, damage the character, etc.
-- [ ] **Wall running**: run along walls for a given distance and jump off of them
+- [x] **Tic Tacs**: Jump into walls and then kick off them again to gain height and speed
 - [ ] **Double jump**: jump a second time in the air with a different feel from the first jump. Can be chained with wall running.
-- [ ] **Mantling**: Hold the jump button near the ledge while either on the ground or in the air to grab it and climb up on it
-- [ ] **Water**: Dive up and down in water, move slower, and jump differently out of it
+- [x] **Mantling**: Hold the jump button near the ledge while either on the ground or in the air to grab it and climb up on it
+- [x] **Water**: Dive up and down in water, move slower, and jump differently out of it
 - [ ] **Surface friction**: Set the friction differently on individual surfaces to make them slippery or extra grippy
 - [ ] **Ladders**: Walk or jump to a ladder to hold onto it, then move to climb up and down on it or jump to get off early. Step up the surface when you reach the end of the ladder.
 
