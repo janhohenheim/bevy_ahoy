@@ -7,7 +7,7 @@ use bevy_ecs::{
 };
 use core::fmt::Debug;
 use core::time::Duration;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{CharacterControllerState, MantleProgress, input::AccumulatedInput, prelude::*};
 
@@ -83,6 +83,7 @@ fn run_kcc(
         if ctx.state.crane_height_left.is_some() {
             handle_crane_movement(wish_velocity, &time, &move_and_slide, &mut ctx);
         } else if ctx.state.mantle_progress.is_some() {
+            handle_jump(wish_velocity, &time, &colliders, &move_and_slide, &mut ctx);
             handle_mantle_movement(
                 wish_velocity_3d,
                 &time,
@@ -652,10 +653,6 @@ fn update_mantle_state(
         return;
     }
     if ctx.state.mantle_progress.is_some() {
-        if ctx.input.jumped.is_some() {
-            ctx.input.jumped = None;
-            ctx.state.mantle_progress = None;
-        }
         return;
     }
 
@@ -1083,6 +1080,27 @@ fn handle_tac(
     Some(tac_dir * groundedness * ctx.cfg.tac_power)
 }
 
+fn handle_ledge_jump_dir(ctx: &mut CtxItem) -> Option<Vec3> {
+    if ctx.state.mantle_progress.is_none()
+        || ctx
+            .input
+            .mantled
+            .as_ref()
+            .is_some_and(|m| m.elapsed() < ctx.cfg.mantle_input_buffer)
+        || ctx.input.jumped.is_none()
+    {
+        return None;
+    }
+    let fwd = ctx.state.orientation.forward();
+    let flat_fwd = Dir3::new(vec3(fwd.x, 0.0, fwd.z)).ok()?;
+    let tac_dir = Dir3::new(Vec3::Y * ctx.cfg.ledge_jump_factor + *flat_fwd).ok()?;
+    info!(time=?ctx
+        .input
+        .mantled);
+    ctx.state.mantle_progress = None;
+    Some(dbg!(tac_dir * ctx.cfg.ledge_jump_power))
+}
+
 fn handle_jump(
     wish_velocity: Vec3,
     time: &Time,
@@ -1095,6 +1113,8 @@ fn handle_jump(
         if ctx.state.grounded.is_none() && ctx.state.last_ground.elapsed() > ctx.cfg.coyote_time {
             if let Some(tac_dir) = handle_tac(wish_velocity, time, move_and_slide, ctx) {
                 tac_dir
+            } else if let Some(ledge_jump_dir) = handle_ledge_jump_dir(ctx) {
+                ledge_jump_dir
             } else {
                 return;
             }
