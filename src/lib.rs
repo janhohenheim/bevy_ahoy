@@ -174,6 +174,8 @@ pub struct CharacterController {
     pub min_ledge_grab_space: Cuboid,
     pub climb_pull_up_height: f32,
     pub max_ledge_grab_distance: f32,
+    pub climb_reverse_sin: f32,
+    pub climb_sensitivity: f32,
 }
 
 impl Default for CharacterController {
@@ -230,6 +232,8 @@ impl Default for CharacterController {
             min_ledge_grab_space: Cuboid::new(0.2, 0.1, 0.2),
             climb_pull_up_height: 0.3,
             max_ledge_grab_distance: 0.3,
+            climb_reverse_sin: 20.0_f32.to_radians().sin(),
+            climb_sensitivity: 2.5,
         }
     }
 }
@@ -295,6 +299,7 @@ impl CharacterController {
 pub struct CharacterControllerState {
     pub orientation: Transform,
     pub base_velocity: Vec3,
+    pub base_angular_velocity: Vec3,
     #[reflect(ignore)]
     pub standing_collider: Collider,
     #[reflect(ignore)]
@@ -317,6 +322,7 @@ impl Default for CharacterControllerState {
     fn default() -> Self {
         Self {
             base_velocity: Vec3::ZERO,
+            base_angular_velocity: Vec3::ZERO,
             orientation: Transform::IDENTITY,
             // late initialized
             standing_collider: default(),
