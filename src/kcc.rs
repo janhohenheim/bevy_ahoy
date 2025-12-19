@@ -13,7 +13,8 @@ use crate::{CharacterControllerState, MantleProgress, input::AccumulatedInput, p
 
 pub(super) fn plugin(schedule: Interned<dyn ScheduleLabel>) -> impl Fn(&mut App) {
     move |app: &mut App| {
-        app.add_systems(schedule, run_kcc.in_set(AhoySystems::MoveCharacters));
+        app.add_systems(schedule, run_kcc.in_set(AhoySystems::MoveCharacters))
+            .add_systems(Update, spin_cams);
     }
 }
 
@@ -50,8 +51,6 @@ fn run_kcc(
 ) {
     let mut colliders = colliders.transmute_lens_inner();
     let colliders = colliders.query();
-    let mut cams = cams.transmute_lens_inner();
-    let cams = cams.query();
     let mut waters = waters.transmute_lens_inner();
     let waters = waters.query();
     for mut ctx in &mut kccs {
@@ -76,8 +75,8 @@ fn run_kcc(
             .and_then(|e| Option::<&Transform>::copied(cams.get(e.get()).ok()))
             .unwrap_or(*ctx.transform);
 
-        let wish_velocity = calculate_wish_velocity(&cams, &ctx);
-        let wish_velocity_3d = calculate_3d_wish_velocity(&cams, &ctx);
+        let wish_velocity = calculate_wish_velocity(&ctx);
+        let wish_velocity_3d = calculate_3d_wish_velocity(&ctx);
         update_crane_state(wish_velocity, &time, &move_and_slide, &mut ctx);
         update_mantle_state(wish_velocity, &time, &move_and_slide, &mut ctx);
         if ctx.state.crane_height_left.is_some() {
@@ -448,9 +447,7 @@ fn handle_mantle_movement(
         progress.ledge_position = hit.point1;
         progress.wall_entity = hit.entity;
         if let Ok(platform) = colliders.get(progress.wall_entity) {
-            let platform_movement =
-                calculate_platform_movement(mantle.ledge_position, &platform, time, ctx);
-            ctx.state.base_velocity = platform_movement / time.delta_secs();
+            calculate_platform_movement(mantle.ledge_position, &platform, time, ctx);
         }
     }
 
@@ -486,7 +483,7 @@ fn calc_climb_factor(ctx: &CtxItem) -> f32 {
     // positive when looking at the wall or above it, negative when looking down
     let movement = ctx.input.last_movement.unwrap_or_default().y;
     let cos = (ctx.state.orientation.forward() * movement.abs()).y;
-    let factor = ((cos + 0.5) * 2.5).clamp(-1.0, 1.0);
+    let factor = ((cos + ctx.cfg.climb_reverse_sin) * ctx.cfg.climb_sensitivity).clamp(-1.0, 1.0);
     if movement < 0.0 { -factor } else { factor }
 }
 
@@ -965,15 +962,11 @@ fn set_grounded(
         && let Some(old_ground) = old_ground
         && let Ok(platform) = colliders.get(old_ground.entity)
     {
-        let platform_movement =
-            calculate_platform_movement(old_ground.point1, &platform, time, ctx);
-        ctx.state.base_velocity = platform_movement / time.delta_secs();
+        calculate_platform_movement(old_ground.point1, &platform, time, ctx);
     } else if let Some(new_ground) = new_ground
         && let Ok(platform) = colliders.get(new_ground.entity)
     {
-        let platform_movement =
-            calculate_platform_movement(new_ground.point1, &platform, time, ctx);
-        ctx.state.base_velocity = platform_movement / time.delta_secs();
+        calculate_platform_movement(new_ground.point1, &platform, time, ctx);
     }
 
     ctx.state.grounded = new_ground;
@@ -986,13 +979,12 @@ fn set_grounded(
     }
 }
 
-#[must_use]
 fn calculate_platform_movement(
     ground: Vec3,
     platform: &ColliderComponentsReadOnlyItem,
     time: &Time,
-    ctx: &CtxItem,
-) -> Vec3 {
+    ctx: &mut CtxItem,
+) {
     let ground_com = (platform.rot.0 * platform.com.0) + platform.pos.0;
     let platform_transform = Transform::IDENTITY
         .with_translation(ground_com)
@@ -1005,12 +997,15 @@ fn calculate_platform_movement(
     let mut touch_point = ctx.transform.translation;
     touch_point.y = ground.y;
 
-    next_platform_transform.transform_point(
+    let platform_movement = next_platform_transform.transform_point(
         platform_transform
             .compute_affine()
             .inverse()
             .transform_point3(touch_point),
-    ) - touch_point
+    ) - touch_point;
+
+    ctx.state.base_velocity = platform_movement / time.delta_secs();
+    ctx.state.base_angular_velocity = platform.ang_vel.0;
 }
 
 fn friction(time: &Time, ctx: &mut CtxItem) {
@@ -1186,7 +1181,7 @@ fn validate_velocity(ctx: &mut CtxItem) {
 }
 
 #[must_use]
-fn calculate_wish_velocity(_cams: &Query<&Transform>, ctx: &CtxItem) -> Vec3 {
+fn calculate_wish_velocity(ctx: &CtxItem) -> Vec3 {
     let movement = ctx.input.last_movement.unwrap_or_default();
     let mut forward = Vec3::from(ctx.state.orientation.forward());
     forward.y = 0.0;
@@ -1208,7 +1203,7 @@ fn calculate_wish_velocity(_cams: &Query<&Transform>, ctx: &CtxItem) -> Vec3 {
 }
 
 #[must_use]
-fn calculate_3d_wish_velocity(_cams: &Query<&Transform>, ctx: &CtxItem) -> Vec3 {
+fn calculate_3d_wish_velocity(ctx: &CtxItem) -> Vec3 {
     let movement = ctx.input.last_movement.unwrap_or_default();
     let forward = ctx.state.orientation.forward();
     let right = ctx.state.orientation.right();
@@ -1256,4 +1251,22 @@ fn is_intersecting(move_and_slide: &MoveAndSlide, waters: &Query<Entity>, ctx: &
         },
     );
     intersecting
+}
+
+// TODO: this should rotate the KCC, not the cams. The cams can then inherit that rotation inside the camera controller module.
+fn spin_cams(
+    kccs: Query<Ctx>,
+    mut cams: Query<&mut Transform, Without<CharacterController>>,
+    time: Res<Time>,
+) {
+    for ctx in &kccs {
+        if ctx.state.grounded.is_some()
+            && let Some(mut cam) = ctx.cam.and_then(|cam| cams.get_mut(cam.get()).ok())
+        {
+            cam.rotate_axis(
+                Dir3::Y,
+                ctx.state.base_angular_velocity.y * time.delta_secs(),
+            );
+        }
+    }
 }
