@@ -2,12 +2,14 @@ use avian_pickup::input::{AvianPickupAction, AvianPickupInput};
 use bevy_time::Stopwatch;
 
 use crate::prelude::*;
+use crate::CharacterControllerState;
 
 use crate::fixed_update_utils::did_fixed_timestep_run_this_frame;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_observer(apply_movement)
         .add_observer(apply_jump)
+        .add_observer(apply_global_movement)
         .add_observer(apply_tac)
         .add_observer(apply_crouch)
         .add_observer(apply_swim_up)
@@ -28,6 +30,10 @@ pub(super) fn plugin(app: &mut App) {
 #[derive(Debug, InputAction)]
 #[action_output(Vec2)]
 pub struct Movement;
+
+#[derive(Debug, InputAction)]
+#[action_output(Vec3)]
+pub struct GlobalMovement;
 
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
@@ -97,6 +103,20 @@ fn apply_movement(
 ) {
     if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(movement.context) {
         accumulated_inputs.last_movement = Some(movement.value);
+    }
+}
+
+fn apply_global_movement(
+    movement: On<Fire<GlobalMovement>>,
+    mut query: Query<(&mut AccumulatedInput, &CharacterControllerState)>,
+) {
+    if let Ok((mut accumulated_inputs, state)) = query.get_mut(movement.context) {
+        let global_move = movement.value;
+        let right = state.orientation.right();
+        let forward = state.orientation.forward();
+        let local_x = global_move.dot(*right);
+        let local_y = global_move.dot(*forward);
+        accumulated_inputs.last_movement = Some(Vec2::new(local_x, local_y));
     }
 }
 

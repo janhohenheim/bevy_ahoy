@@ -19,8 +19,8 @@ pub mod prelude {
         AhoyPlugin, AhoySystems, CharacterController, PickupConfig,
         camera::{CharacterControllerCamera, CharacterControllerCameraOf},
         input::{
-            Crane, Crouch, DropObject, Jump, Mantle, Movement, PullObject, RotateCamera, SwimUp,
-            Tac, ThrowObject, YankCamera,
+            Crane, Crouch, DropObject, GlobalMovement, Jump, Mantle, Movement, PullObject,
+            RotateCamera, SwimUp, Tac, ThrowObject, YankCamera,
         },
         pickup,
         water::{Water, WaterLevel, WaterState},
