@@ -77,7 +77,7 @@ fn main() -> AppExit {
         .add_systems(FixedUpdate, move_trains)
         .add_observer(spawn_player)
         // NPC Stuff
-        .add_input_context::<NPC>()
+        .add_input_context::<Npc>()
         .add_systems(Startup, spawn_npc)
         .add_systems(Update, update_npc)
         .run()
@@ -389,15 +389,15 @@ fn on_add_water(mut world: DeferredWorld, ctx: HookContext) {
 const NPC_SPAWN_POINT: Vec3 = Vec3::new(-55.0, 45.0, 1.0);
 
 #[derive(Component, Default)]
-#[component(on_add = NPC::on_add)]
-struct NPC {
+#[component(on_add = Npc::on_add)]
+struct Npc {
     step: usize,
     timer: Timer,
 }
 
-impl NPC {
+impl Npc {
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        world.commands().entity(ctx.entity).insert(actions!(NPC[
+        world.commands().entity(ctx.entity).insert(actions!(Npc[
             (
                 Action::<GlobalMovement>::new(),
                 ActionMock {
@@ -429,13 +429,13 @@ fn spawn_npc(mut commands: Commands) {
             RigidBody::Kinematic,
             Collider::cylinder(0.7, 1.8),
             Mass(90.0),
-            NPC::default(),
+            Npc::default(),
         ));
 }
 
 fn update_npc(
     time: Res<Time>,
-    mut npcs: Query<(&mut NPC, &Actions<NPC>)>,
+    mut npcs: Query<(&mut Npc, &Actions<Npc>)>,
     mut action_mocks: Query<&mut ActionMock>,
     global_movements: Query<(), With<Action<GlobalMovement>>>,
     jumps: Query<(), With<Action<Jump>>>,
@@ -466,11 +466,7 @@ fn update_npc(
             1 => (Vec3::Z, false),
             2 => (Vec3::NEG_X, false),
             3 => (Vec3::X, false),
-            4 => (Vec3::ZERO, false),
-            6 => (Vec3::ZERO, false),
-            8 => (Vec3::ZERO, false),
             5..=9 => (Vec3::ZERO, true),
-            10 => (Vec3::ZERO, false),
             _ => (Vec3::ZERO, false),
         };
 
