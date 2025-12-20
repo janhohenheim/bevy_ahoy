@@ -467,11 +467,9 @@ fn update_npc(
             2 => (Vec3::NEG_X, false),
             3 => (Vec3::X, false),
             4 => (Vec3::ZERO, false),
-            5 => (Vec3::ZERO, true),
             6 => (Vec3::ZERO, false),
-            7 => (Vec3::ZERO, true),
             8 => (Vec3::ZERO, false),
-            9 => (Vec3::ZERO, true),
+            5..=9 => (Vec3::ZERO, true),
             10 => (Vec3::ZERO, false),
             _ => (Vec3::ZERO, false),
         };
