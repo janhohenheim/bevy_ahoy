@@ -117,7 +117,6 @@ pub enum AhoySystems {
     CharacterControllerState,
     TranslationInterpolation,
     RigidBody = RigidBody::Kinematic,
-    Collider = Collider::cylinder(0.7, 1.8),
     WaterState,
     CustomPositionIntegration,
     Transform,
@@ -242,64 +241,79 @@ impl Default for CharacterController {
 
 impl CharacterController {
     pub fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        {
-            let Some(mut kcc) = world.get_mut::<Self>(ctx.entity) else {
-                return;
-            };
-            kcc.filter.excluded_entities.add(ctx.entity);
-        }
+        let has_collider = world.entity(ctx.entity).contains::<Collider>();
+        let has_constructor = world.entity(ctx.entity).contains::<ColliderConstructor>();
 
-        let (crouch_height, min_ledge_grab_space) = {
-            let Some(kcc) = world.get::<Self>(ctx.entity) else {
-                return;
-            };
-            (kcc.crouch_height, kcc.min_ledge_grab_space)
-        };
-
-        let Some(collider) = world.entity(ctx.entity).get::<Collider>().cloned() else {
-            return;
-        };
-        let standing_aabb = collider.aabb(default(), Rotation::default());
-        let standing_height = standing_aabb.max.y - standing_aabb.min.y;
-
-        let Some(mut state) = world.get_mut::<CharacterControllerState>(ctx.entity) else {
-            return;
-        };
-        state.standing_collider = collider.clone();
-
-        let frac = crouch_height / standing_height;
-
-        let mut crouching_collider = Collider::from(SharedShape(Arc::from(
-            state.standing_collider.shape().clone_dyn(),
-        )));
-
-        if crouching_collider.shape().as_capsule().is_some() {
-            let capsule = crouching_collider
-                .shape_mut()
-                .make_mut()
-                .as_capsule_mut()
-                .unwrap();
-            let radius = capsule.radius;
-            let new_height = (crouch_height - radius).max(0.0);
-            *capsule = Capsule::new_y(new_height / 2.0, radius);
+        if has_collider {
+            let entity = ctx.entity;
+            world.commands().queue(move |world: &mut World| {
+                world.run_system_cached_with(setup_collider, entity)
+            });
+        } else if has_constructor {
+            world
+                .commands()
+                .entity(ctx.entity)
+                .observe(on_collider_ready);
         } else {
-            // note: well-behaved shapes like cylinders and cuboids will not actually subdivide when scaled, yay
-            crouching_collider.set_scale(vec3(1.0, frac, 1.0), 16);
+            panic!("`CharacterController` requires a `Collider` or `ColliderConstructor`");
         }
-        state.jump_crouching_collider = Collider::compound(vec![(
-            Vec3::ZERO,
-            Rotation::default(),
-            crouching_collider.clone(),
-        )]);
-
-        state.crouching_collider = Collider::compound(vec![(
-            Vec3::Y * (crouch_height - standing_height) / 2.0,
-            Rotation::default(),
-            crouching_collider,
-        )]);
-
-        state.hand_collider = Collider::from(min_ledge_grab_space);
     }
+}
+
+fn on_collider_ready(trigger: On<ColliderConstructorReady>, mut commands: Commands) {
+    commands.run_system_cached_with(setup_collider, trigger.entity);
+}
+
+fn setup_collider(
+    In(entity): In<Entity>,
+    mut kcc: Query<(
+        &mut CharacterController,
+        &mut CharacterControllerState,
+        &Collider,
+    )>,
+) {
+    let Ok((mut cfg, mut state, collider)) = kcc.get_mut(entity) else {
+        return;
+    };
+    cfg.filter.excluded_entities.add(entity);
+
+    let standing_aabb = collider.aabb(default(), Rotation::default());
+    let standing_height = standing_aabb.max.y - standing_aabb.min.y;
+
+    state.standing_collider = collider.clone();
+
+    let frac = cfg.crouch_height / standing_height;
+
+    let mut crouching_collider = Collider::from(SharedShape(Arc::from(
+        state.standing_collider.shape().clone_dyn(),
+    )));
+
+    if crouching_collider.shape().as_capsule().is_some() {
+        let capsule = crouching_collider
+            .shape_mut()
+            .make_mut()
+            .as_capsule_mut()
+            .unwrap();
+        let radius = capsule.radius;
+        let new_height = (cfg.crouch_height - radius).max(0.0);
+        *capsule = Capsule::new_y(new_height / 2.0, radius);
+    } else {
+        // note: well-behaved shapes like cylinders and cuboids will not actually subdivide when scaled, yay
+        crouching_collider.set_scale(vec3(1.0, frac, 1.0), 16);
+    }
+    state.jump_crouching_collider = Collider::compound(vec![(
+        Vec3::ZERO,
+        Rotation::default(),
+        crouching_collider.clone(),
+    )]);
+
+    state.crouching_collider = Collider::compound(vec![(
+        Vec3::Y * (cfg.crouch_height - standing_height) / 2.0,
+        Rotation::default(),
+        crouching_collider,
+    )]);
+
+    state.hand_collider = Collider::from(cfg.min_ledge_grab_space);
 }
 
 #[derive(Component, Clone, Reflect, Debug)]
