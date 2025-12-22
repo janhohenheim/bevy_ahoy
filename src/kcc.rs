@@ -47,7 +47,7 @@ fn run_kcc(
     time: Res<Time>,
     move_and_slide: MoveAndSlide,
     // TODO: allow this to be other KCCs
-    colliders: Query<ColliderComponents, Without<CharacterController>>,
+    colliders: Query<ColliderComponents, (Without<CharacterController>, With<Collider>)>,
     waters: Query<Entity, With<Water>>,
 ) {
     let mut colliders = colliders.transmute_lens_inner();
@@ -910,7 +910,6 @@ fn update_grounded(
             set_grounded(hit, colliders, time, ctx);
         } else {
             set_grounded(None, colliders, time, ctx);
-            // TODO: set surface friction to 0.25 for some reason
         }
     }
     // TODO: fire ground changed event
