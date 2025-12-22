@@ -33,11 +33,19 @@ struct Ctx {
 #[derive(QueryData)]
 #[query_data(mutable, derive(Debug))]
 struct ColliderComponents {
-    lin_vel: Read<LinearVelocity>,
-    ang_vel: Read<AngularVelocity>,
-    com: Read<ComputedCenterOfMass>,
+    lin_vel: Option<Read<LinearVelocity>>,
+    ang_vel: Option<Read<AngularVelocity>>,
+    com: Option<Read<ComputedCenterOfMass>>,
     pos: Read<Position>,
     rot: Read<Rotation>,
+    friction: Option<Read<Friction>>,
+    body: Read<ColliderOf>,
+}
+
+#[derive(QueryData)]
+#[query_data(mutable, derive(Debug))]
+struct RigidBodyComponents {
+    friction: Option<Read<Friction>>,
 }
 
 fn run_kcc(
@@ -46,8 +54,10 @@ fn run_kcc(
     time: Res<Time>,
     move_and_slide: MoveAndSlide,
     // TODO: allow this to be other KCCs
-    colliders: Query<ColliderComponents, Without<CharacterController>>,
+    colliders: Query<ColliderComponents, (Without<CharacterController>, Without<Sensor>)>,
+    rigid_bodies: Query<RigidBodyComponents>,
     waters: Query<Entity, With<Water>>,
+    default_friction: Res<DefaultFriction>,
 ) {
     let mut colliders = colliders.transmute_lens_inner();
     let colliders = colliders.query();
@@ -95,7 +105,13 @@ fn run_kcc(
 
             // Friction is handled before we add in any base velocity. That way, if we are on a conveyor,
             //  we don't slow when standing still, relative to the conveyor.
-            friction(&time, &mut ctx);
+            friction(
+                &time,
+                &colliders,
+                &rigid_bodies,
+                &default_friction,
+                &mut ctx,
+            );
 
             validate_velocity(&mut ctx);
 
@@ -178,9 +194,7 @@ fn ground_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx
         return;
     }
 
-    // TODO: read this from ground
-    let surface_friction = 1.0;
-    let accel_speed = wish_speed * acceleration_hz * time.delta_secs() * surface_friction;
+    let accel_speed = wish_speed * acceleration_hz * time.delta_secs();
     let accel_speed = f32::min(accel_speed, add_speed);
 
     ctx.velocity.0 += accel_speed * wish_dir;
@@ -208,9 +222,7 @@ fn air_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx: &
         return;
     }
 
-    // TODO: read this from ground
-    let surface_friction = 1.0;
-    let accel_speed = wish_speed * acceleration_hz * time.delta_secs() * surface_friction;
+    let accel_speed = wish_speed * acceleration_hz * time.delta_secs();
     let accel_speed = f32::min(accel_speed, add_speed);
 
     ctx.velocity.0 += accel_speed * wish_dir;
@@ -252,9 +264,7 @@ fn water_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx:
         return;
     }
 
-    // TODO: read this from ground
-    let surface_friction = 1.0;
-    let accel_speed = wish_speed * acceleration_hz * time.delta_secs() * surface_friction;
+    let accel_speed = wish_speed * acceleration_hz * time.delta_secs();
     let accel_speed = f32::min(accel_speed, add_speed);
 
     ctx.velocity.0 += accel_speed * wish_dir;
@@ -915,7 +925,6 @@ fn update_grounded(
             set_grounded(hit, colliders, time, ctx);
         } else {
             set_grounded(None, colliders, time, ctx);
-            // TODO: set surface friction to 0.25 for some reason
         }
     }
     // TODO: fire ground changed event
@@ -985,14 +994,18 @@ fn calculate_platform_movement(
     time: &Time,
     ctx: &mut CtxItem,
 ) {
-    let ground_com = (platform.rot.0 * platform.com.0) + platform.pos.0;
+    let platform_com = platform.com.map(|c| c.0).unwrap_or(Vec3::ZERO);
+    let platform_lin_vel = platform.lin_vel.map(|v| v.0).unwrap_or(Vec3::ZERO);
+    let platform_ang_vel = platform.ang_vel.map(|v| v.0).unwrap_or(Vec3::ZERO);
+
+    let ground_com = (platform.rot.0 * platform_com) + platform.pos.0;
     let platform_transform = Transform::IDENTITY
         .with_translation(ground_com)
         .with_rotation(platform.rot.0);
     let next_platform_transform = Transform::IDENTITY
-        .with_translation(ground_com + platform.lin_vel.0 * time.delta_secs())
+        .with_translation(ground_com + platform_lin_vel * time.delta_secs())
         .with_rotation(
-            Quat::from_scaled_axis(platform.ang_vel.0 * time.delta_secs()) * platform.rot.0,
+            Quat::from_scaled_axis(platform_ang_vel * time.delta_secs()) * platform.rot.0,
         );
     let mut touch_point = ctx.transform.translation;
     touch_point.y = ground.y;
@@ -1005,10 +1018,16 @@ fn calculate_platform_movement(
     ) - touch_point;
 
     ctx.state.base_velocity = platform_movement / time.delta_secs();
-    ctx.state.base_angular_velocity = platform.ang_vel.0;
+    ctx.state.base_angular_velocity = platform_ang_vel;
 }
 
-fn friction(time: &Time, ctx: &mut CtxItem) {
+fn friction(
+    time: &Time,
+    colliders: &Query<ColliderComponents>,
+    rigid_bodies: &Query<RigidBodyComponents>,
+    default_friction: &DefaultFriction,
+    ctx: &mut CtxItem,
+) {
     let speed = if ctx.state.grounded.is_some() {
         ctx.velocity.xz().length()
     } else if ctx.water.level > WaterLevel::Feet {
@@ -1021,9 +1040,24 @@ fn friction(time: &Time, ctx: &mut CtxItem) {
     }
 
     let mut drop = 0.0;
-    // apply ground friction
-    // TODO: read ground's friction
-    let surface_friction = 1.0;
+    let surface_friction = if let Some(grounded) = ctx.state.grounded.as_ref()
+        && let Ok(ground) = colliders.get(grounded.entity)
+    {
+        if let Some(friction) = ground.friction {
+            friction.dynamic_coefficient
+        } else if let Some(friction) = rigid_bodies
+            .get(ground.body.body)
+            .ok()
+            .and_then(|rb| rb.friction)
+        {
+            friction.dynamic_coefficient
+        } else {
+            default_friction.dynamic_coefficient
+        }
+    } else {
+        Friction::default().dynamic_coefficient
+    };
+
     let friction = ctx.cfg.friction_hz * surface_friction;
     let control = f32::max(speed, ctx.cfg.stop_speed);
     drop += control * friction * time.delta_secs();

@@ -189,7 +189,7 @@ impl Default for CharacterController {
             ground_distance: 0.05,
             min_walk_cos: 40.0_f32.to_radians().cos(),
             stop_speed: 2.54,
-            friction_hz: 6.0,
+            friction_hz: 12.0,
             acceleration_hz: 8.0,
             air_acceleration_hz: 12.0,
             water_acceleration_hz: 12.0,

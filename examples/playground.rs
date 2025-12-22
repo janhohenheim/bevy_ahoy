@@ -385,6 +385,24 @@ fn on_add_water(mut world: DeferredWorld, ctx: HookContext) {
         .insert(bevy_ahoy::prelude::Water { speed });
 }
 
+#[solid_class(base(Transform, Visibility))]
+#[component(on_add = on_add_ice)]
+#[derive(Default)]
+pub struct Ice {
+    friction: f32,
+}
+
+fn on_add_ice(mut world: DeferredWorld, ctx: HookContext) {
+    if world.is_scene_world() {
+        return;
+    }
+    let friction = world.get::<Ice>(ctx.entity).unwrap().friction;
+    world
+        .commands()
+        .entity(ctx.entity)
+        .insert(Friction::new(friction));
+}
+
 //NPC Stuff
 const NPC_SPAWN_POINT: Vec3 = Vec3::new(-55.0, 45.0, 1.0);
 

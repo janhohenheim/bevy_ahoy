@@ -46,7 +46,7 @@ This tradeoff allows Ahoy to fully define its own separate model of how a charac
 - [ ] **Double jump**: jump a second time in the air with a different feel from the first jump. Can be chained with wall running.
 - [x] **Mantling**: Hold the jump button near the ledge while either on the ground or in the air to grab it and climb up on it
 - [x] **Water**: Dive up and down in water, move slower, and jump differently out of it
-- [ ] **Surface friction**: Set the friction differently on individual surfaces to make them slippery or extra grippy
+- [x] **Surface friction**: Set the friction differently on individual surfaces to make them slippery or extra grippy
 - [ ] **Ladders**: Walk or jump to a ladder to hold onto it, then move to climb up and down on it or jump to get off early. Step up the surface when you reach the end of the ladder.
 
 ## Usage
