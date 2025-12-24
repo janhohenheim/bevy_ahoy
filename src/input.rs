@@ -18,6 +18,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_observer(apply_throw)
         .add_observer(apply_crane)
         .add_observer(apply_mantle)
+        .add_observer(apply_climbdown)
         .add_systems(
             RunFixedMainLoop,
             clear_accumulated_input
@@ -54,6 +55,10 @@ pub struct Crane;
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct Mantle;
+
+#[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct Climbdown;
 
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
@@ -95,6 +100,7 @@ pub struct AccumulatedInput {
     pub crouched: bool,
     pub craned: Option<Stopwatch>,
     pub mantled: Option<Stopwatch>,
+    pub climbdown: Option<Stopwatch>,
 }
 
 fn apply_movement(
@@ -156,6 +162,15 @@ fn apply_mantle(crouch: On<Fire<Mantle>>, mut accumulated_inputs: Query<&mut Acc
     }
 }
 
+fn apply_climbdown(
+    climbdown: On<Fire<Climbdown>>,
+    mut accumulated_inputs: Query<&mut AccumulatedInput>,
+) {
+    if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(climbdown.context) {
+        accumulated_inputs.climbdown = Some(Stopwatch::new());
+    }
+}
+
 fn apply_pull(
     crouch: On<Fire<PullObject>>,
     mut avian_pickup_input_writer: MessageWriter<AvianPickupInput>,
@@ -214,6 +229,7 @@ fn clear_accumulated_input(mut accumulated_inputs: Query<&mut AccumulatedInput>)
             craned: accumulated_input.craned.clone(),
             mantled: accumulated_input.mantled.clone(),
             crouched: default(),
+            climbdown: accumulated_input.climbdown.clone(),
         }
     }
 }
@@ -231,6 +247,9 @@ fn tick_timers(mut inputs: Query<&mut AccumulatedInput>, time: Res<Time>) {
         }
         if let Some(mantled) = input.mantled.as_mut() {
             mantled.tick(time.delta());
+        }
+        if let Some(climbdown) = input.climbdown.as_mut() {
+            climbdown.tick(time.delta());
         }
     }
 }

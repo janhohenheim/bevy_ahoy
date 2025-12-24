@@ -199,6 +199,11 @@ impl PlayerInput {
                     ],
                 ),
                 (
+                    Action::<Climbdown>::new(),
+                    ActionSettings { consume_input: false, ..default() },
+                    bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
+                ),
+                (
                     Action::<Crouch>::new(),
                     ActionSettings { consume_input: false, ..default() },
                     bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
