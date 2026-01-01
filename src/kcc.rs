@@ -14,7 +14,7 @@ use crate::{CharacterControllerState, MantleProgress, input::AccumulatedInput, p
 pub(super) fn plugin(schedule: Interned<dyn ScheduleLabel>) -> impl Fn(&mut App) {
     move |app: &mut App| {
         app.add_systems(schedule, run_kcc.in_set(AhoySystems::MoveCharacters))
-            .add_systems(Update, spin_cams);
+            .add_systems(Update, spin_kcc);
     }
 }
 
@@ -1335,17 +1335,10 @@ fn is_intersecting(move_and_slide: &MoveAndSlide, waters: &Query<Entity>, ctx: &
     intersecting
 }
 
-// TODO: this should rotate the KCC, not the cams. The cams can then inherit that rotation inside the camera controller module.
-fn spin_cams(
-    kccs: Query<Ctx>,
-    mut cams: Query<&mut Transform, Without<CharacterController>>,
-    time: Res<Time>,
-) {
-    for ctx in &kccs {
-        if ctx.state.grounded.is_some()
-            && let Some(mut cam) = ctx.cam.and_then(|cam| cams.get_mut(cam.get()).ok())
-        {
-            cam.rotate_axis(
+fn spin_kcc(mut kccs: Query<Ctx>, time: Res<Time>) {
+    for mut ctx in &mut kccs {
+        if ctx.state.grounded.is_some() {
+            ctx.transform.rotate_axis(
                 Dir3::Y,
                 ctx.state.base_angular_velocity.y * time.delta_secs(),
             );
