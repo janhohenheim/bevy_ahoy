@@ -2,6 +2,7 @@ use avian_pickup::input::{AvianPickupAction, AvianPickupInput};
 use bevy_time::Stopwatch;
 
 use crate::CharacterControllerState;
+use crate::kcc::{forward, right};
 use crate::prelude::*;
 
 use crate::fixed_update_utils::did_fixed_timestep_run_this_frame;
@@ -118,10 +119,10 @@ fn apply_global_movement(
 ) {
     if let Ok((mut accumulated_inputs, state)) = query.get_mut(movement.context) {
         let global_move = movement.value;
-        let right = state.orientation.right();
-        let forward = state.orientation.forward();
-        let local_x = global_move.dot(*right);
-        let local_y = global_move.dot(*forward);
+        let right = right(state.orientation);
+        let forward = forward(state.orientation);
+        let local_x = global_move.dot(right);
+        let local_y = global_move.dot(forward);
         accumulated_inputs.last_movement = Some(Vec2::new(local_x, local_y));
     }
 }

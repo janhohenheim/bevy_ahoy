@@ -83,7 +83,8 @@ fn run_kcc(
         ctx.state.orientation = ctx
             .cam
             .and_then(|e| Option::<&Transform>::copied(cams.get(e.get()).ok()))
-            .unwrap_or(*ctx.transform);
+            .map(|transform| transform.rotation)
+            .unwrap_or(ctx.transform.rotation);
 
         let wish_velocity = calculate_wish_velocity(&ctx);
         let wish_velocity_3d = calculate_3d_wish_velocity(&ctx);
@@ -496,7 +497,7 @@ fn handle_mantle_movement(
 fn calc_climb_factor(ctx: &CtxItem) -> f32 {
     // positive when looking at the wall or above it, negative when looking down
     let movement = ctx.input.last_movement.unwrap_or_default().y;
-    let cos = (ctx.state.orientation.forward() * movement.abs()).y;
+    let cos = (forward(ctx.state.orientation) * movement.abs()).y;
     let factor = ((cos + ctx.cfg.climb_reverse_sin) * ctx.cfg.climb_sensitivity).clamp(-1.0, 1.0);
     if movement < 0.0 { -factor } else { factor }
 }
@@ -698,11 +699,10 @@ fn available_mantle_height(
 
     let wish_dir = if let Ok(wish_dir) = Dir3::new(wish_velocity) {
         wish_dir
-    } else if let Ok(fwd) = Dir3::new(vec3(
-        ctx.state.orientation.forward().x,
-        0.0,
-        ctx.state.orientation.forward().z,
-    )) {
+    } else if let Ok(fwd) = Dir3::new({
+        let fwd = forward(ctx.state.orientation);
+        vec3(fwd.x, 0.0, fwd.z)
+    }) {
         fwd
     } else {
         return None;
@@ -1174,7 +1174,7 @@ fn handle_ledge_jump_dir(ctx: &mut CtxItem) -> Option<Vec3> {
     {
         return None;
     }
-    let fwd = ctx.state.orientation.forward();
+    let fwd = forward(ctx.state.orientation);
     let flat_fwd = Dir3::new(vec3(fwd.x, 0.0, fwd.z)).ok()?;
     let tac_dir = if ctx.input.last_movement.unwrap_or_default().y >= 0.0 {
         Dir3::new(Vec3::Y * ctx.cfg.ledge_jump_factor + *flat_fwd).ok()?
@@ -1265,10 +1265,10 @@ fn validate_velocity(ctx: &mut CtxItem) {
 #[must_use]
 fn calculate_wish_velocity(ctx: &CtxItem) -> Vec3 {
     let movement = ctx.input.last_movement.unwrap_or_default();
-    let mut forward = Vec3::from(ctx.state.orientation.forward());
+    let mut forward = forward(ctx.state.orientation);
     forward.y = 0.0;
     forward = forward.normalize_or_zero();
-    let mut right = Vec3::from(ctx.state.orientation.right());
+    let mut right = right(ctx.state.orientation);
     right.y = 0.0;
     right = right.normalize_or_zero();
 
@@ -1287,8 +1287,8 @@ fn calculate_wish_velocity(ctx: &CtxItem) -> Vec3 {
 #[must_use]
 fn calculate_3d_wish_velocity(ctx: &CtxItem) -> Vec3 {
     let movement = ctx.input.last_movement.unwrap_or_default();
-    let forward = ctx.state.orientation.forward();
-    let right = ctx.state.orientation.right();
+    let forward = forward(ctx.state.orientation);
+    let right = right(ctx.state.orientation);
 
     let wish_vel = movement.y * forward + movement.x * right;
     let wish_dir = wish_vel.normalize_or_zero();
@@ -1351,4 +1351,16 @@ fn spin_cams(
             );
         }
     }
+}
+
+/// Convenience for getting the forward vector corresponding to an orientation.
+#[must_use]
+pub(crate) fn forward(orientation: Quat) -> Vec3 {
+    orientation * Vec3::NEG_Z
+}
+
+/// Convenience for getting the right vector corresponding to an orientation.
+#[must_use]
+pub(crate) fn right(orientation: Quat) -> Vec3 {
+    orientation * Vec3::X
 }
