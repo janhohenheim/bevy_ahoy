@@ -137,7 +137,7 @@ fn run_kcc(
         }
 
         if ctx.state.grounded.is_some() {
-            ctx.velocity.y = ctx.state.base_velocity.y;
+            ctx.velocity.y = ctx.state.platform_velocity.y;
             ctx.state.last_ground.reset();
         }
         // TODO: check_falling();
@@ -160,12 +160,12 @@ fn ground_move(wish_velocity: Vec3, time: &Time, move_and_slide: &MoveAndSlide, 
     ground_accelerate(wish_velocity, ctx.cfg.acceleration_hz, time, ctx);
     ctx.velocity.y = 0.0;
 
-    ctx.velocity.0 += ctx.state.base_velocity;
+    ctx.velocity.0 += ctx.state.platform_velocity;
     let speed = ctx.velocity.length();
 
     if speed < 0.01 {
         // zero velocity out and remove base
-        ctx.velocity.0 = -ctx.state.base_velocity;
+        ctx.velocity.0 = -ctx.state.platform_velocity;
         return;
     }
 
@@ -176,7 +176,7 @@ fn ground_move(wish_velocity: Vec3, time: &Time, move_and_slide: &MoveAndSlide, 
 
     if hit.is_none() {
         ctx.transform.translation += movement;
-        ctx.velocity.0 -= ctx.state.base_velocity;
+        ctx.velocity.0 -= ctx.state.platform_velocity;
         depenetrate_character(move_and_slide, ctx);
         snap_to_ground(move_and_slide, ctx);
         return;
@@ -184,7 +184,7 @@ fn ground_move(wish_velocity: Vec3, time: &Time, move_and_slide: &MoveAndSlide, 
 
     step_move(time, move_and_slide, ctx);
 
-    ctx.velocity.0 -= ctx.state.base_velocity;
+    ctx.velocity.0 -= ctx.state.platform_velocity;
     snap_to_ground(move_and_slide, ctx);
 }
 
@@ -207,11 +207,11 @@ fn ground_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx
 
 fn air_move(wish_velocity: Vec3, time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) {
     air_accelerate(wish_velocity, ctx.cfg.air_acceleration_hz, time, ctx);
-    ctx.velocity.0 += ctx.state.base_velocity;
+    ctx.velocity.0 += ctx.state.platform_velocity;
 
     step_move(time, move_and_slide, ctx);
 
-    ctx.velocity.0 -= ctx.state.base_velocity;
+    ctx.velocity.0 -= ctx.state.platform_velocity;
 }
 
 fn air_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx: &mut CtxItem) {
@@ -251,11 +251,11 @@ fn water_move(
     wish_velocity *= ctx.cfg.water_slowdown;
 
     water_accelerate(wish_velocity, ctx.cfg.water_acceleration_hz, time, ctx);
-    ctx.velocity.0 += ctx.state.base_velocity;
+    ctx.velocity.0 += ctx.state.platform_velocity;
 
     step_move(time, move_and_slide, ctx);
 
-    ctx.velocity.0 -= ctx.state.base_velocity;
+    ctx.velocity.0 -= ctx.state.platform_velocity;
 }
 
 fn water_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx: &mut CtxItem) {
@@ -357,11 +357,11 @@ fn handle_crane_movement(
     ctx.velocity.y = 0.0;
     ground_accelerate(wish_velocity, ctx.cfg.acceleration_hz, time, ctx);
     ctx.velocity.y = 0.0;
-    ctx.velocity.0 += ctx.state.base_velocity;
+    ctx.velocity.0 += ctx.state.platform_velocity;
 
     let Ok((vel_dir, speed)) = Dir3::new_and_length(ctx.velocity.0) else {
         ctx.state.crane_height_left = None;
-        ctx.velocity.0 -= ctx.state.base_velocity;
+        ctx.velocity.0 -= ctx.state.platform_velocity;
         return;
     };
 
@@ -370,7 +370,7 @@ fn handle_crane_movement(
     } else {
         vel_dir
     };
-    ctx.velocity.0 -= ctx.state.base_velocity;
+    ctx.velocity.0 -= ctx.state.platform_velocity;
     // Check wall
     let cast_dir = wish_dir;
     let cast_len = ctx.cfg.min_crane_ledge_space;
@@ -393,7 +393,7 @@ fn handle_crane_movement(
 
     ctx.transform.translation += cast_dir * travel_dist;
     let velocity_stash = ctx.velocity.0;
-    **ctx.velocity = ctx.state.base_velocity;
+    **ctx.velocity = ctx.state.platform_velocity;
     move_character(time, move_and_slide, ctx);
     **ctx.velocity = velocity_stash;
 
@@ -482,9 +482,9 @@ fn handle_mantle_movement(
     let travel_dist =
         top_hit.map(|hit| hit.distance).unwrap_or(climb_dist.abs()) * climb_dist.signum();
 
-    ctx.velocity.0 = climb_dir * travel_dist / time.delta_secs() + ctx.state.base_velocity;
+    ctx.velocity.0 = climb_dir * travel_dist / time.delta_secs() + ctx.state.platform_velocity;
     move_character(time, move_and_slide, ctx);
-    ctx.velocity.0 -= ctx.state.base_velocity;
+    ctx.velocity.0 -= ctx.state.platform_velocity;
 
     ctx.state.mantle_progress.as_mut().unwrap().height_left = mantle.height_left - travel_dist;
     if climb_dist > 0.0 {
@@ -572,7 +572,7 @@ fn available_ledge_height(
     ctx.velocity.y = 0.0;
     ground_accelerate(wish_velocity, ctx.cfg.acceleration_hz, time, ctx);
     ctx.velocity.y = 0.0;
-    ctx.velocity.0 += ctx.state.base_velocity;
+    ctx.velocity.0 += ctx.state.platform_velocity;
 
     // Check wall
     let cast_dir = wish_dir;
@@ -711,7 +711,7 @@ fn available_mantle_height(
     ctx.velocity.y = 0.0;
     ground_accelerate(wish_velocity, ctx.cfg.acceleration_hz, time, ctx);
     ctx.velocity.y = 0.0;
-    ctx.velocity.0 += ctx.state.base_velocity;
+    ctx.velocity.0 += ctx.state.platform_velocity;
 
     // Check wall
     let cast_dir = wish_dir;
@@ -952,7 +952,7 @@ fn update_grounded(
     let moving_up = y_vel > 0.0;
     let mut moving_up_rapidly = y_vel > ctx.cfg.unground_speed;
     if moving_up_rapidly && ctx.state.grounded.is_some() {
-        let ground_entity_y_vel = ctx.state.base_velocity.y;
+        let ground_entity_y_vel = ctx.state.platform_velocity.y;
         moving_up_rapidly = (y_vel - ground_entity_y_vel) > ctx.cfg.unground_speed;
     }
 
@@ -961,8 +961,8 @@ fn update_grounded(
         set_grounded(None, colliders, time, ctx);
     } else {
         let cast_dir = Dir3::NEG_Y;
-        let cast_dist = if ctx.state.base_velocity.y < 0.0 {
-            ctx.cfg.ground_distance - ctx.state.base_velocity.y * time.delta_secs()
+        let cast_dist = if ctx.state.platform_velocity.y < 0.0 {
+            ctx.cfg.ground_distance - ctx.state.platform_velocity.y * time.delta_secs()
         } else {
             ctx.cfg.ground_distance
         };
@@ -1065,8 +1065,8 @@ fn calculate_platform_movement(
             .transform_point3(touch_point),
     ) - touch_point;
 
-    ctx.state.base_velocity = platform_movement / time.delta_secs();
-    ctx.state.base_angular_velocity = platform_ang_vel;
+    ctx.state.platform_velocity = platform_movement / time.delta_secs();
+    ctx.state.platform_angular_velocity = platform_ang_vel;
 }
 
 fn friction(
@@ -1228,7 +1228,7 @@ fn handle_jump(
     // v^2 = g * g * 2.0 * 45 / g
     // v = sqrt( g * 2.0 * 45 )
     let fl_mul = (2.0 * ctx.cfg.gravity * ctx.cfg.jump_height).sqrt();
-    ctx.velocity.0 += jumpdir * ground_factor * fl_mul + Vec3::Y * ctx.state.base_velocity.y;
+    ctx.velocity.0 += jumpdir * ground_factor * fl_mul + Vec3::Y * ctx.state.platform_velocity.y;
     if let Some(crane_input) = ctx.input.craned.as_mut() {
         crane_input
             .tick((ctx.cfg.crane_input_buffer - ctx.cfg.jump_crane_chain_time).max(Duration::ZERO));
@@ -1238,8 +1238,8 @@ fn handle_jump(
 }
 
 fn start_gravity(time: &Time, ctx: &mut CtxItem) {
-    ctx.velocity.y += (ctx.state.base_velocity.y - ctx.cfg.gravity * 0.5) * time.delta_secs();
-    ctx.state.base_velocity.y = 0.0;
+    ctx.velocity.y += (ctx.state.platform_velocity.y - ctx.cfg.gravity * 0.5) * time.delta_secs();
+    ctx.state.platform_velocity.y = 0.0;
 
     validate_velocity(ctx);
 }
@@ -1347,7 +1347,7 @@ fn spin_cams(
         {
             cam.rotate_axis(
                 Dir3::Y,
-                ctx.state.base_angular_velocity.y * time.delta_secs(),
+                ctx.state.platform_angular_velocity.y * time.delta_secs(),
             );
         }
     }
