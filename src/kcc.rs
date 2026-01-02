@@ -9,7 +9,10 @@ use core::fmt::Debug;
 use core::time::Duration;
 use tracing::warn;
 
-use crate::{CharacterControllerState, MantleProgress, input::AccumulatedInput, prelude::*};
+use crate::{
+    CharacterControllerDerivedProps, CharacterControllerState, MantleProgress,
+    input::AccumulatedInput, prelude::*,
+};
 
 pub(super) fn plugin(schedule: Interned<dyn ScheduleLabel>) -> impl Fn(&mut App) {
     move |app: &mut App| {
@@ -23,6 +26,7 @@ pub(super) fn plugin(schedule: Interned<dyn ScheduleLabel>) -> impl Fn(&mut App)
 struct Ctx {
     velocity: Write<LinearVelocity>,
     state: Write<CharacterControllerState>,
+    derived: Read<CharacterControllerDerivedProps>,
     transform: Write<Transform>,
     input: Write<AccumulatedInput>,
     cfg: Read<CharacterController>,
@@ -146,7 +150,7 @@ fn run_kcc(
 
 fn depenetrate_character(move_and_slide: &MoveAndSlide, ctx: &mut CtxItem) {
     let offset = move_and_slide.depenetrate(
-        ctx.state.collider(),
+        ctx.derived.collider(&ctx.state),
         ctx.transform.translation,
         ctx.transform.rotation,
         &((&ctx.cfg.move_and_slide).into()),
@@ -737,7 +741,7 @@ fn available_mantle_height(
         .unwrap_or(cast_len);
     ctx.transform.translation += cast_dir * up_dist;
 
-    let radius = ctx.state.radius();
+    let radius = ctx.derived.radius(&ctx.state);
     let hand_to_wall_dist =
         radius + ctx.cfg.move_and_slide.skin_width + ctx.cfg.min_ledge_grab_space.half_size.z;
     // Move onto ledge (penetration explicitly allowed since the ledge can be below a wall)
@@ -788,7 +792,7 @@ fn available_mantle_height(
         return None;
     }
 
-    let kcc_height = ctx.state.pos_to_head_dist();
+    let kcc_height = ctx.derived.pos_to_head_dist(&ctx.state);
     let mantle_height = ledge_height - kcc_height + ctx.cfg.climb_pull_up_height;
 
     if mantle_height < 0.0 {
@@ -855,7 +859,7 @@ fn move_character(time: &Time, move_and_slide: &MoveAndSlide, ctx: &mut CtxItem)
 
     let mut touching_entities = std::mem::take(&mut ctx.state.touching_entities);
     let out = move_and_slide.move_and_slide(
-        ctx.state.collider(),
+        ctx.derived.collider(&ctx.state),
         ctx.transform.translation,
         ctx.transform.rotation,
         ctx.velocity.0,
@@ -914,7 +918,7 @@ fn closest_wall_normal(
 ) -> Option<(Vec3, Dir3)> {
     let mut closest_wall: Option<(ContactPoint, Dir3)> = None;
     move_and_slide.intersections(
-        ctx.state.collider(),
+        ctx.derived.collider(&ctx.state),
         ctx.transform.translation,
         ctx.transform.rotation,
         dist + ctx.cfg.move_and_slide.skin_width,
@@ -976,7 +980,7 @@ fn update_grounded(
 #[must_use]
 fn cast_move(movement: Vec3, move_and_slide: &MoveAndSlide, ctx: &CtxItem) -> Option<MoveHitData> {
     move_and_slide.cast_move(
-        ctx.state.collider(),
+        ctx.derived.collider(&ctx.state),
         ctx.transform.translation,
         ctx.transform.rotation,
         movement,
@@ -992,7 +996,7 @@ fn cast_move_hands(
     ctx: &CtxItem,
 ) -> Option<MoveHitData> {
     move_and_slide.cast_move(
-        &ctx.state.hand_collider,
+        &ctx.derived.hand_collider,
         ctx.transform.translation,
         ctx.transform.rotation,
         movement,
@@ -1315,7 +1319,7 @@ fn is_intersecting(move_and_slide: &MoveAndSlide, waters: &Query<Entity>, ctx: &
     // If we used skin width, we could not stand up if we are closer than skin width to the ground,
     // which happens when going under a slope.
     move_and_slide.query_pipeline.shape_intersections_callback(
-        ctx.state.collider(),
+        ctx.derived.collider(&ctx.state),
         ctx.transform.translation,
         ctx.transform.rotation,
         &ctx.cfg.filter,

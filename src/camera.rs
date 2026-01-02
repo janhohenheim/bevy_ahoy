@@ -3,7 +3,7 @@ use std::{f32::consts::TAU, time::Duration};
 use avian_pickup::actor::AvianPickupActor;
 use bevy_ecs::{lifecycle::HookContext, relationship::Relationship, world::DeferredWorld};
 
-use crate::{CharacterControllerState, prelude::*};
+use crate::{CharacterControllerDerivedProps, CharacterControllerState, prelude::*};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(
@@ -70,15 +70,20 @@ pub(crate) fn sync_camera_transform(
         (&mut Transform, &CharacterControllerCameraOf),
         (Without<CharacterControllerState>,),
     >,
-    kccs: Query<(&Transform, &CharacterController, &CharacterControllerState)>,
+    kccs: Query<(
+        &Transform,
+        &CharacterController,
+        &CharacterControllerState,
+        &CharacterControllerDerivedProps,
+    )>,
     time: Res<Time>,
 ) {
     // TODO: DIY TransformHelper to use current global transform.
     // Can't use GlobalTransform directly: outdated -> jitter
     // Can't use TransformHelper directly: access conflict with &mut Transform
     for (mut camera_transform, camera) in cameras.iter_mut() {
-        if let Ok((kcc_transform, cfg, state)) = kccs.get(camera.character_controller) {
-            let height = state
+        if let Ok((kcc_transform, cfg, state, derived)) = kccs.get(camera.character_controller) {
+            let height = derived
                 // changing the collider does not change the transform, so to get the correct position for the feet,
                 // we need to use the collider we spawned with.
                 .standing_collider

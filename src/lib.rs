@@ -115,6 +115,7 @@ pub enum AhoySystems {
 #[require(
     AccumulatedInput,
     CharacterControllerState,
+    CharacterControllerDerivedProps,
     TranslationInterpolation,
     RigidBody = RigidBody::Kinematic,
     WaterState,
@@ -265,11 +266,11 @@ fn setup_collider(
     In(entity): In<Entity>,
     mut kcc: Query<(
         &mut CharacterController,
-        &mut CharacterControllerState,
+        &mut CharacterControllerDerivedProps,
         &Collider,
     )>,
 ) {
-    let Ok((mut cfg, mut state, collider)) = kcc.get_mut(entity) else {
+    let Ok((mut cfg, mut derived, collider)) = kcc.get_mut(entity) else {
         return;
     };
     cfg.filter.excluded_entities.add(entity);
@@ -277,12 +278,12 @@ fn setup_collider(
     let standing_aabb = collider.aabb(default(), Rotation::default());
     let standing_height = standing_aabb.max.y - standing_aabb.min.y;
 
-    state.standing_collider = collider.clone();
+    derived.standing_collider = collider.clone();
 
     let frac = cfg.crouch_height / standing_height;
 
     let mut crouching_collider = Collider::from(SharedShape(Arc::from(
-        state.standing_collider.shape().clone_dyn(),
+        derived.standing_collider.shape().clone_dyn(),
     )));
 
     if crouching_collider.shape().as_capsule().is_some() {
@@ -299,13 +300,13 @@ fn setup_collider(
         crouching_collider.set_scale(vec3(1.0, frac, 1.0), 16);
     }
 
-    state.crouching_collider = Collider::compound(vec![(
+    derived.crouching_collider = Collider::compound(vec![(
         Vec3::Y * (cfg.crouch_height - standing_height) / 2.0,
         Rotation::default(),
         crouching_collider,
     )]);
 
-    state.hand_collider = Collider::from(cfg.min_ledge_grab_space);
+    derived.hand_collider = Collider::from(cfg.min_ledge_grab_space);
 }
 
 #[derive(Component, Clone, Reflect, Debug)]
@@ -318,12 +319,6 @@ pub struct CharacterControllerState {
     /// The angular velocity of the platform that the character is standing on (or has recently
     /// jumped off of).
     pub platform_angular_velocity: Vec3,
-    #[reflect(ignore)]
-    pub standing_collider: Collider,
-    #[reflect(ignore)]
-    pub crouching_collider: Collider,
-    #[reflect(ignore)]
-    pub hand_collider: Collider,
     pub grounded: Option<MoveHitData>,
     pub crouching: bool,
     pub tac_velocity: f32,
@@ -342,10 +337,6 @@ impl Default for CharacterControllerState {
             platform_velocity: Vec3::ZERO,
             platform_angular_velocity: Vec3::ZERO,
             orientation: Quat::IDENTITY,
-            // late initialized
-            standing_collider: default(),
-            crouching_collider: default(),
-            hand_collider: default(),
             grounded: None,
             crouching: false,
             tac_velocity: 0.0,
@@ -374,25 +365,44 @@ fn max_stopwatch() -> Stopwatch {
     watch
 }
 
-impl CharacterControllerState {
-    pub fn collider(&self) -> &Collider {
-        if self.crouching {
+/// Properties derived for a [`CharacterController`] that are constant for a character.
+#[derive(Component, Clone, Debug, Default)]
+pub struct CharacterControllerDerivedProps {
+    /// The collider for the primary movement used when the character is standing.
+    pub standing_collider: Collider,
+    /// The collider for the primary movement used when the character is crouching.
+    pub crouching_collider: Collider,
+    /// The collider representing the hands for mantling.
+    pub hand_collider: Collider,
+}
+
+impl CharacterControllerDerivedProps {
+    pub fn collider(&self, state: &CharacterControllerState) -> &Collider {
+        if state.crouching {
             &self.crouching_collider
         } else {
             &self.standing_collider
         }
     }
 
-    pub fn pos_to_head_dist(&self) -> f32 {
-        self.collider().shape_scaled().compute_local_aabb().maxs.y
+    pub fn pos_to_head_dist(&self, state: &CharacterControllerState) -> f32 {
+        self.collider(state)
+            .shape_scaled()
+            .compute_local_aabb()
+            .maxs
+            .y
     }
 
-    pub fn pos_to_feet_dist(&self) -> f32 {
-        self.collider().shape_scaled().compute_local_aabb().mins.y
+    pub fn pos_to_feet_dist(&self, state: &CharacterControllerState) -> f32 {
+        self.collider(state)
+            .shape_scaled()
+            .compute_local_aabb()
+            .mins
+            .y
     }
 
-    pub fn radius(&self) -> f32 {
-        match self.collider().shape_scaled().as_typed_shape() {
+    pub fn radius(&self, state: &CharacterControllerState) -> f32 {
+        match self.collider(state).shape_scaled().as_typed_shape() {
             avian3d::parry::shape::TypedShape::Ball(ball) => ball.radius,
             avian3d::parry::shape::TypedShape::Cuboid(cuboid) => cuboid.half_extents.max(),
             avian3d::parry::shape::TypedShape::Capsule(capsule) => capsule.radius,
