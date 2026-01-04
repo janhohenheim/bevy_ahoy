@@ -75,3 +75,4 @@ all-features = true
 
 [patch.crates-io]
 avian3d = { git = "https://github.com/avianphysics/avian" }
+bevy_transform_interpolation = { git = "https://github.com/andriyDev/bevy_transform_interpolation", branch = "fix_any_transform_change" }

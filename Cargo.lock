@@ -1579,8 +1579,7 @@ dependencies = [
 [[package]]
 name = "bevy_transform_interpolation"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284738382605476667bbe80cf0959f4dffb61adbdb0149e22e67f4dbf97a5bc2"
+source = "git+https://github.com/andriyDev/bevy_transform_interpolation?branch=fix_any_transform_change#7a91d9528a86c76b185aa5569f12cf5a7c5ef410"
 dependencies = [
  "bevy",
 ]
