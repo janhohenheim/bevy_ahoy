@@ -1,3 +1,4 @@
+use crate::util::ExampleUtilPlugin;
 use avian3d::prelude::*;
 use bevy::{
     color::palettes::tailwind,
@@ -13,8 +14,6 @@ use bevy_enhanced_input::prelude::*;
 use bevy_time::Stopwatch;
 use bevy_trenchbroom::prelude::*;
 use bevy_trenchbroom_avian::AvianPhysicsBackend;
-
-use crate::util::ExampleUtilPlugin;
 
 mod util;
 
@@ -84,10 +83,13 @@ fn main() -> AppExit {
         ))
         .add_input_context::<PlayerInput>()
         .insert_resource(ClearColor(tailwind::SKY_200.into()))
+        .init_resource::<Checkpoint>()
         .add_systems(Startup, (setup, setup_velocity_text))
         .add_observer(spawn_player)
         .add_observer(setup_time)
         .add_observer(reset_time)
+        .add_observer(save_checkpoint)
+        .add_observer(load_checkpoint)
         .add_systems(
             Update,
             (
@@ -194,6 +196,14 @@ impl PlayerInput {
                         Spawn((Binding::mouse_motion(), Scale::splat(0.05))),
                         Axial::right_stick().with((Scale::splat(4.0), DeadZone::default())),
                     ))
+                ),
+               (
+                    Action::<SaveCheckpoint>::new(),
+                    bindings![KeyCode::Digit1, GamepadButton::DPadDown],
+                ),
+                (
+                    Action::<LoadCheckpoint>::new(),
+                    bindings![KeyCode::Digit2, GamepadButton::DPadUp],
                 ),
             ]));
     }
@@ -353,4 +363,90 @@ fn update_velocity_text(
     velocity: Single<&LinearVelocity, With<CharacterController>>,
 ) {
     text.0 = format!("{:.3}", velocity.xz().length());
+}
+
+#[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct SaveCheckpoint;
+
+#[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct LoadCheckpoint;
+
+#[derive(Clone, Debug, Reflect, Default, Resource)]
+#[reflect(Resource, Clone, Debug)]
+struct Checkpoint {
+    transform: Transform,
+    velocity: LinearVelocity,
+    state: CharacterControllerState,
+    camera_rotation: Quat,
+    time: Stopwatch,
+}
+
+impl Checkpoint {
+    pub fn new(
+        transform: Transform,
+        velocity: LinearVelocity,
+        state: CharacterControllerState,
+        camera_rotation: Quat,
+        time: Stopwatch,
+    ) -> Self {
+        Self {
+            transform,
+            velocity,
+            state,
+            camera_rotation,
+            time,
+        }
+    }
+}
+
+fn save_checkpoint(
+    _trigger: On<Start<SaveCheckpoint>>,
+    mut cmd: Commands,
+    player: Single<(&Transform, &LinearVelocity, &CharacterControllerState), With<Player>>,
+    camera: Single<&Transform, (With<Camera3d>, Without<Player>)>,
+    time: Single<&TimeText>,
+) {
+    let (tf, velocity, state) = *player;
+    // Might wanna have a history instead of just the last one?
+    cmd.insert_resource(Checkpoint::new(
+        *tf,
+        *velocity,
+        state.clone(),
+        camera.rotation,
+        (**time).clone(),
+    ));
+    info!("Checkpoint saved!");
+}
+
+fn load_checkpoint(
+    _trigger: On<Start<LoadCheckpoint>>,
+    checkpoint: Option<Res<Checkpoint>>,
+    player: Single<
+        (
+            &mut Transform,
+            &mut LinearVelocity,
+            &mut CharacterControllerState,
+        ),
+        With<Player>,
+    >,
+    mut camera: Single<&mut Transform, (With<Camera3d>, Without<Player>)>,
+    mut time: Single<&mut TimeText>,
+) {
+    let Some(cp) = checkpoint else {
+        return;
+    };
+
+    let (mut transform, mut velocity, mut state) = player.into_inner();
+
+    *transform = cp.transform;
+    *velocity = cp.velocity;
+    *state = cp.state.clone();
+    camera.rotation = cp.camera_rotation;
+
+    // not sure if we wanna track time at all if checkpoints/practice systems are active?
+    ***time = cp.time.clone();
+
+    info!("Checkpoint loaded!");
 }
