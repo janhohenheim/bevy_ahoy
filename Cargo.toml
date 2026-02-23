@@ -39,6 +39,7 @@ avian3d = "0.6.0-rc.1"
 bevy_framepace = { version = "0.21.0", git = "https://github.com/aevyrie/bevy_framepace" }
 bevy_fix_cursor_unlock_web = "0.3.0"
 wasm-bindgen = "=0.2.108"
+bevy_third_person_camera = { git = "https://github.com/olekspickle/bevy_third_person_camera" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }

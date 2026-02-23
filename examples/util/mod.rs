@@ -420,3 +420,46 @@ pub(crate) fn apply_last_stable_ground(
         }
     }
 }
+
+pub trait CameraExt {
+    fn movement_direction(&self, input: Vec2) -> Vec3;
+}
+impl CameraExt for Transform {
+    /// Get movement direction as normalized verticality-agnostic vector
+    fn movement_direction(&self, input: Vec2) -> Vec3 {
+        let forward = self.forward();
+        let forward_flat = Vec3::new(forward.x, 0.0, forward.z);
+        let right = forward_flat.cross(Vec3::Y).normalize_or_zero();
+        let direction = (right * input.x) + (forward_flat * input.y);
+        direction.normalize_or_zero()
+    }
+}
+
+pub trait EntityExt {
+    fn get_recursive<T: Component>(
+        &self,
+        children_q: Query<&Children>,
+        component_q: Query<Entity, With<T>>,
+    ) -> Option<Entity>;
+}
+impl EntityExt for Entity {
+    fn get_recursive<T: Component>(
+        &self,
+        children_q: Query<&Children>,
+        component_q: Query<Entity, With<T>>,
+    ) -> Option<Entity> {
+        if component_q.get(*self).is_ok() {
+            return Some(*self);
+        }
+
+        if let Ok(children) = children_q.get(*self) {
+            for child in children.iter() {
+                if let Some(e) = child.get_recursive(children_q, component_q) {
+                    return Some(e);
+                }
+            }
+        }
+
+        None
+    }
+}
