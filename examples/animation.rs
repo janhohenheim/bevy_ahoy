@@ -85,15 +85,13 @@ fn main() -> AppExit {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            prepare_animations
-                .chain()
-                .run_if(resource_exists::<PlayerModel>.and(run_once)),
+            spawn_player_when_ready.run_if(not(resource_exists::<PlayerModel>)),
         )
         .add_systems(
             Update,
             (rotate_player, calcucate_animations, animate).chain(),
         )
-        .add_observer(spawn_player)
+        // .add_observer(spawn_player)
         .add_systems(
             Update,
             (
@@ -153,26 +151,24 @@ pub struct PlayerModel(Handle<Gltf>);
 #[reflect(Component)]
 struct SpawnPlayer;
 
-fn spawn_player(
-    insert: On<Insert, SpawnPlayer>,
-    players: Query<Entity, With<Player>>,
-    player_model: Res<PlayerModel>,
-    spawner: Query<&Transform>,
-    gltfs: Res<Assets<Gltf>>,
+fn spawn_player_when_ready(
     mut commands: Commands,
+    player_handle: Res<PlayerModel>,
+    asset_server: Res<AssetServer>,
+    gltfs: Res<Assets<Gltf>>,
 ) {
-    for player in players {
-        // Respawn the player on hot-reloads
-        commands.entity(player).despawn();
+    info!("player asset loading(?) ");
+    if !asset_server.is_loaded_with_dependencies(&player_handle.0) {
+        info!("player asset not loaded yet");
+        return;
     }
-    let Ok(transform) = spawner.get(insert.entity).copied() else {
-        return;
-    };
+    info!("player asset is loaded");
 
-    let Some(model) = gltfs.get(&player_model.0) else {
-        return;
-    };
-
+    let model = gltfs
+        .get(&player_handle.0)
+        .expect("a loaded asset should exist in the glTF assets collection");
+    let pos = Vec3::new(0.0, 325.5, 353.7);
+    let transform = Transform::from_translation(pos);
     commands
         .spawn((
             Player::default(),
@@ -181,11 +177,52 @@ fn spawn_player(
             ThirdPersonCameraTarget,
         ))
         .with_children(|parent| {
-            parent.spawn((
-                SceneRoot(model.scenes[0].clone()),
-                Transform::from_xyz(0.0, -1.0, 0.0),
-            ));
+            parent
+                .spawn(SceneRoot(model.scenes[0].clone()))
+                .observe(prepare_animations);
         });
+}
+
+fn spawn_player_system(
+    mut commands: Commands,
+    player_model: Res<PlayerModel>,
+    gltfs: Res<Assets<Gltf>>,
+    spawners: Query<(Entity, &Transform), With<SpawnPlayer>>,
+    asset_server: Res<AssetServer>,
+    players: Query<Entity, With<Player>>,
+) {
+    if !asset_server.is_loaded_with_dependencies(&player_model.0) {
+        // fox is not loaded yet
+        return;
+    }
+
+    let Some(model) = gltfs.get(&player_model.0) else {
+        return;
+    };
+    info!("spawn_player_system got model");
+
+    // If we get here, the model is ready.
+    for (spawner_entity, transform) in &spawners {
+        info!("Spawning player at ready asset");
+
+        // Despawn old players if necessary
+        for p in &players {
+            commands.entity(p).despawn();
+        }
+
+        commands
+            .spawn((
+                Player::default(),
+                *transform,
+                PreviousPosition(transform.translation),
+                ThirdPersonCameraTarget,
+            ))
+            .with_children(|parent| {
+                parent.spawn(SceneRoot(model.scenes[0].clone()));
+            });
+
+        commands.entity(spawner_entity).despawn();
+    }
 }
 
 #[derive(Component, Default)]
@@ -225,6 +262,80 @@ impl PlayerInput {
     }
 }
 
+#[solid_class(base(Transform, Visibility), hooks(SceneHooks::new()))]
+struct FuncIllusionary;
+
+#[solid_class(base(Transform, Visibility))]
+#[component(on_add = Self::on_add_prop)]
+#[require(
+    Sensor,
+    CollisionEventsEnabled,
+    CollisionLayers::new(
+        [CollisionLayer::Sensor],
+        [CollisionLayer::Player],
+    )
+)]
+struct TriggerTeleport;
+
+impl TriggerTeleport {
+    fn on_add_prop(mut world: DeferredWorld, ctx: HookContext) {
+        if world.is_scene_world() {
+            return;
+        }
+        world.commands().spawn(
+            Observer::new(
+                |_: On<CollisionStart>,
+                 mut commands: Commands,
+                 reset: Single<Entity, With<Action<util::Reset>>>| {
+                    commands
+                        .entity(*reset)
+                        .insert(ActionMock::once(ActionState::Fired, true));
+                },
+            )
+            .with_entity(ctx.entity),
+        );
+    }
+}
+
+#[solid_class(base(Transform, Visibility))]
+#[component(on_add = Self::on_add_prop)]
+#[derive(Default)]
+#[require(
+    Sensor,
+    CollisionEventsEnabled,
+    CollisionLayers::new(
+        [CollisionLayer::Sensor],
+        [CollisionLayer::Player],
+    )
+)]
+struct TriggerPush {
+    speed: f32,
+}
+
+impl TriggerPush {
+    fn on_add_prop(mut world: DeferredWorld, ctx: HookContext) {
+        if world.is_scene_world() {
+            return;
+        }
+        world.commands().spawn(
+            Observer::new(
+                |start: On<CollisionStart>,
+                 push: Query<&TriggerPush>,
+                 mut velocity: Single<&mut LinearVelocity, With<Player>>| {
+                    let Ok(push) = push.get(start.collider1) else {
+                        return;
+                    };
+                    let Ok((dir, vel)) = Dir3::new_and_length(velocity.0) else {
+                        return;
+                    };
+                    velocity.0 = dir * (vel + push.speed);
+                },
+            )
+            .with_entity(ctx.entity),
+        );
+    }
+}
+
 fn capture_cursor(mut cursor: Single<&mut CursorOptions>) {
     cursor.grab_mode = CursorGrabMode::Locked;
     cursor.visible = false;
@@ -240,6 +351,7 @@ enum CollisionLayer {
     #[default]
     Default,
     Player,
+    Sensor,
 }
 
 // CONTROLS
@@ -269,10 +381,11 @@ fn rotate_player(
 
 /// Build animation graph when scene loads
 fn prepare_animations(
+    _: On<SceneInstanceReady>,
     gltfs: Res<Assets<Gltf>>,
     children_q: Query<&Children>,
-    animation_player_q: Query<Entity, With<AnimationPlayer>>,
     player_model: Res<PlayerModel>,
+    animation_player_q: Query<Entity, With<AnimationPlayer>>,
     mut animation_players: Query<&mut AnimationPlayer>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
     mut players: Query<(Entity, &mut Player)>,
