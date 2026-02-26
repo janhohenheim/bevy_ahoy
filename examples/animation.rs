@@ -15,6 +15,7 @@ use bevy_enhanced_input::prelude::*;
 use bevy_third_person_camera::*;
 use bevy_trenchbroom::prelude::*;
 use bevy_trenchbroom_avian::AvianPhysicsBackend;
+use core::ops::Deref;
 use std::time::Duration;
 
 mod util;
@@ -25,7 +26,7 @@ fn main() -> AppExit {
             DefaultPlugins
                 .set(GltfPlugin {
                     convert_coordinates: GltfConvertCoordinates {
-                        rotate_scene_entity: true,
+                        rotate_scene_entity: false,
                         rotate_meshes: true,
                     },
                     ..default()
@@ -85,13 +86,9 @@ fn main() -> AppExit {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            spawn_player_when_ready.run_if(not(resource_exists::<PlayerModel>)),
-        )
-        .add_systems(
-            Update,
             (rotate_player, calcucate_animations, animate).chain(),
         )
-        // .add_observer(spawn_player)
+        .add_observer(spawn_player)
         .add_systems(
             Update,
             (
@@ -103,8 +100,8 @@ fn main() -> AppExit {
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.insert_resource(PlayerModel(assets.load("models/ual.glb#Scene0")));
-    commands.spawn(SceneRoot(assets.load("maps/utopia.map#Scene")));
+    commands.insert_resource(PlayerModel(assets.load("models/ual.glb")));
+    commands.spawn(SceneRoot(assets.load("maps/playground.map#Scene")));
     commands.spawn((
         Camera3d::default(),
         ThirdPersonCamera {
@@ -120,13 +117,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 #[require(
     PlayerInput,
     CharacterController {
-        acceleration_hz: 10.0,
-        air_acceleration_hz: 150.0,
-        speed: 100.0,
-        jump_height: 5.0,
-        gravity: 23.0,
+        speed: 20.0,
+        jump_height: 2.0,
+        gravity: 20.0,
         crouch_height: 2.0,
-        friction_hz: 4.0,
         ..default()
     },
     RigidBody::Kinematic,
@@ -136,6 +130,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         LayerMask::ALL,
     ),
     StableGround::default(),
+    CharacterLook::default(),
 )]
 struct Player {
     pub animation: Animations,
@@ -151,60 +146,20 @@ pub struct PlayerModel(Handle<Gltf>);
 #[reflect(Component)]
 struct SpawnPlayer;
 
-fn spawn_player_when_ready(
-    mut commands: Commands,
-    player_handle: Res<PlayerModel>,
-    asset_server: Res<AssetServer>,
-    gltfs: Res<Assets<Gltf>>,
-) {
-    info!("player asset loading(?) ");
-    if !asset_server.is_loaded_with_dependencies(&player_handle.0) {
-        info!("player asset not loaded yet");
-        return;
-    }
-    info!("player asset is loaded");
-
-    let model = gltfs
-        .get(&player_handle.0)
-        .expect("a loaded asset should exist in the glTF assets collection");
-    let pos = Vec3::new(0.0, 325.5, 353.7);
-    let transform = Transform::from_translation(pos);
-    commands
-        .spawn((
-            Player::default(),
-            transform,
-            PreviousPosition(transform.translation),
-            ThirdPersonCameraTarget,
-        ))
-        .with_children(|parent| {
-            parent
-                .spawn(SceneRoot(model.scenes[0].clone()))
-                .observe(prepare_animations);
-        });
-}
-
-fn spawn_player_system(
-    mut commands: Commands,
+fn spawn_player(
+    _: On<Insert, SpawnPlayer>,
     player_model: Res<PlayerModel>,
     gltfs: Res<Assets<Gltf>>,
     spawners: Query<(Entity, &Transform), With<SpawnPlayer>>,
-    asset_server: Res<AssetServer>,
     players: Query<Entity, With<Player>>,
+    mut commands: Commands,
 ) {
-    if !asset_server.is_loaded_with_dependencies(&player_model.0) {
-        // fox is not loaded yet
-        return;
-    }
-
-    let Some(model) = gltfs.get(&player_model.0) else {
+    let Some(gltf) = gltfs.get(&player_model.0) else {
         return;
     };
-    info!("spawn_player_system got model");
 
     // If we get here, the model is ready.
-    for (spawner_entity, transform) in &spawners {
-        info!("Spawning player at ready asset");
-
+    for (_spawner_entity, transform) in &spawners {
         // Despawn old players if necessary
         for p in &players {
             commands.entity(p).despawn();
@@ -218,10 +173,16 @@ fn spawn_player_system(
                 ThirdPersonCameraTarget,
             ))
             .with_children(|parent| {
-                parent.spawn(SceneRoot(model.scenes[0].clone()));
+                parent
+                    .spawn((
+                        SceneRoot(gltf.scenes[0].clone()),
+                        Transform::from_xyz(0.0, -1.0, 0.0),
+                    ))
+                    .observe(prepare_animations);
             });
 
-        commands.entity(spawner_entity).despawn();
+        // for some reason this panics, no idea why
+        // commands.entity(spawner_entity).despawn();
     }
 }
 
@@ -238,6 +199,7 @@ impl PlayerInput {
                 (
                     Action::<Movement>::new(),
                     DeadZone::default(),
+                    Scale::splat(0.3),
                     Bindings::spawn((
                         Cardinal::wasd_keys(),
                         Axial::left_stick()
@@ -262,78 +224,61 @@ impl PlayerInput {
     }
 }
 
-#[solid_class(base(Transform, Visibility), hooks(SceneHooks::new()))]
-struct FuncIllusionary;
-
-#[solid_class(base(Transform, Visibility))]
-#[component(on_add = Self::on_add_prop)]
-#[require(
-    Sensor,
-    CollisionEventsEnabled,
-    CollisionLayers::new(
-        [CollisionLayer::Sensor],
-        [CollisionLayer::Player],
-    )
-)]
-struct TriggerTeleport;
-
-impl TriggerTeleport {
-    fn on_add_prop(mut world: DeferredWorld, ctx: HookContext) {
-        if world.is_scene_world() {
-            return;
-        }
-        world.commands().spawn(
-            Observer::new(
-                |_: On<CollisionStart>,
-                 mut commands: Commands,
-                 reset: Single<Entity, With<Action<util::Reset>>>| {
-                    commands
-                        .entity(*reset)
-                        .insert(ActionMock::once(ActionState::Fired, true));
-                },
-            )
-            .with_entity(ctx.entity),
-        );
-    }
+#[point_class(base(Transform, Visibility), model("models/cube.glb"))]
+#[component(on_add = on_add_prop::<Self>)]
+#[derive(Default, Deref)]
+struct Cube {
+    dynamic: bool,
 }
 
-#[solid_class(base(Transform, Visibility))]
-#[component(on_add = Self::on_add_prop)]
-#[derive(Default)]
-#[require(
-    Sensor,
-    CollisionEventsEnabled,
-    CollisionLayers::new(
-        [CollisionLayer::Sensor],
-        [CollisionLayer::Player],
-    )
-)]
-struct TriggerPush {
-    speed: f32,
+#[point_class(base(Transform, Visibility), model("models/cone.glb"))]
+#[component(on_add = on_add_prop::<Self>)]
+#[derive(Default, Deref)]
+struct Cone {
+    dynamic: bool,
 }
 
-impl TriggerPush {
-    fn on_add_prop(mut world: DeferredWorld, ctx: HookContext) {
-        if world.is_scene_world() {
-            return;
-        }
-        world.commands().spawn(
-            Observer::new(
-                |start: On<CollisionStart>,
-                 push: Query<&TriggerPush>,
-                 mut velocity: Single<&mut LinearVelocity, With<Player>>| {
-                    let Ok(push) = push.get(start.collider1) else {
-                        return;
-                    };
-                    let Ok((dir, vel)) = Dir3::new_and_length(velocity.0) else {
-                        return;
-                    };
-                    velocity.0 = dir * (vel + push.speed);
-                },
-            )
-            .with_entity(ctx.entity),
-        );
+#[point_class(base(Transform, Visibility), model("models/cylinder.glb"))]
+#[component(on_add = on_add_prop::<Self>)]
+#[derive(Default, Deref)]
+struct Cylinder {
+    dynamic: bool,
+}
+
+#[point_class(base(Transform, Visibility), model("models/capsule.glb"))]
+#[component(on_add = on_add_prop::<Self>)]
+#[derive(Default, Deref)]
+struct Capsule {
+    dynamic: bool,
+}
+
+#[point_class(base(Transform, Visibility), model("models/sphere.glb"))]
+#[component(on_add = on_add_prop::<Self>)]
+#[derive(Default, Deref)]
+struct Sphere {
+    dynamic: bool,
+}
+
+fn on_add_prop<T: QuakeClass + Deref<Target = bool>>(mut world: DeferredWorld, ctx: HookContext) {
+    if world.is_scene_world() {
+        return;
     }
+    let dynamic = *world.get::<T>(ctx.entity).unwrap().deref();
+    let assets = world.resource::<AssetServer>().clone();
+    world.commands().entity(ctx.entity).insert((
+        SceneRoot(
+            assets.load(GltfAssetLabel::Scene(0).from_asset(T::CLASS_INFO.model_path().unwrap())),
+        ),
+        ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh)
+            .with_default_layers(CollisionLayers::new(CollisionLayer::Prop, LayerMask::ALL))
+            .with_default_density(300.0),
+        if dynamic {
+            RigidBody::Dynamic
+        } else {
+            RigidBody::Static
+        },
+        TransformInterpolation,
+    ));
 }
 
 fn capture_cursor(mut cursor: Single<&mut CursorOptions>) {
@@ -346,15 +291,74 @@ fn release_cursor(mut cursor: Single<&mut CursorOptions>) {
     cursor.grab_mode = CursorGrabMode::None;
 }
 
-#[derive(PhysicsLayer, Default)]
+#[derive(Debug, PhysicsLayer, Default)]
 enum CollisionLayer {
     #[default]
     Default,
     Player,
-    Sensor,
+    Prop,
 }
 
-// CONTROLS
+#[solid_class(base(Transform, Visibility))]
+#[derive(Default)]
+#[require(RigidBody::Kinematic, TransformInterpolation, GlobalTransform)]
+struct FuncTrain {
+    target: String,
+    speed: f32,
+    rotation: Vec3,
+}
+
+#[point_class(base(Transform, Visibility))]
+#[derive(Default)]
+#[require(GlobalTransform)]
+struct PathCorner {
+    #[class(must_set)]
+    targetname: String,
+    target: String,
+}
+
+#[solid_class(base(Transform, Visibility))]
+#[component(on_add = on_add_water)]
+pub struct Water {
+    speed: f32,
+}
+
+impl Default for Water {
+    fn default() -> Self {
+        Self { speed: 1.0 }
+    }
+}
+
+fn on_add_water(mut world: DeferredWorld, ctx: HookContext) {
+    if world.is_scene_world() {
+        return;
+    }
+    let speed = world.get::<Water>(ctx.entity).unwrap().speed;
+    world
+        .commands()
+        .entity(ctx.entity)
+        .insert(bevy_ahoy::prelude::Water { speed });
+}
+
+#[solid_class(base(Transform, Visibility))]
+#[component(on_add = on_add_ice)]
+#[derive(Default)]
+pub struct Ice {
+    friction: f32,
+}
+
+fn on_add_ice(mut world: DeferredWorld, ctx: HookContext) {
+    if world.is_scene_world() {
+        return;
+    }
+    let friction = world.get::<Ice>(ctx.entity).unwrap().friction;
+    world
+        .commands()
+        .entity(ctx.entity)
+        .insert(Friction::new(friction));
+}
+
+// Rotation
 fn rotate_player(
     movement: Single<&Action<Movement>>,
     camera: Single<&Transform, With<Camera3d>>,
@@ -365,14 +369,14 @@ fn rotate_player(
     for (mut pos, mut look) in player_q.iter_mut() {
         let input_dir = camera.movement_direction(*movement);
 
-        if input_dir.length_squared() > 0.01 {
+        if input_dir.length_squared() > 0.1 {
             // set ahoy KCC direction
             let (yaw, pitch, _) = camera.rotation.to_euler(EulerRot::YXZ);
             *look = CharacterLook { yaw, pitch };
 
             // rotate model
             let rotation = Quat::from_rotation_y(input_dir.x.atan2(input_dir.z));
-            pos.rotation = pos.rotation.slerp(rotation, 0.2);
+            pos.rotation = pos.rotation.slerp(rotation, 0.5);
         }
     }
 }
@@ -399,7 +403,6 @@ fn prepare_animations(
             return;
         };
         let Some(gltf) = gltfs.get(&player_model.0) else {
-            info!("no gltf");
             return;
         };
 
@@ -407,13 +410,9 @@ fn prepare_animations(
         let clips = vec![
             gltf.named_animations["Idle_Loop"].clone(),
             gltf.named_animations["Jog_Fwd_Loop"].clone(),
-            gltf.named_animations["Sprint_Loop"].clone(),
-            gltf.named_animations["Jump_Start"].clone(),
             gltf.named_animations["Jump_Loop"].clone(),
-            gltf.named_animations["Jump_Land"].clone(),
             gltf.named_animations["Crouch_Fwd_Loop"].clone(),
             gltf.named_animations["Crouch_Idle_Loop"].clone(),
-            gltf.named_animations["Roll"].clone(),
         ];
 
         let (graph, nodes) = AnimationGraph::from_clips(clips);
@@ -445,7 +444,7 @@ fn calcucate_animations(
         &mut Player,
     )>,
 ) {
-    const IDLE_ANIMATION_THRESHOLD: f32 = 0.5;
+    const IDLE_ANIMATION_THRESHOLD: f32 = 1.0;
 
     for (ahoy_state, pos, mut prev_pos, mut player) in players.iter_mut() {
         let animation = &mut player.animation;
@@ -453,16 +452,10 @@ fn calcucate_animations(
         let displacement = pos.translation - prev_pos.0;
         let velocity = displacement / time.delta_secs();
         let horizontal_speed = Vec3::new(velocity.x, 0.0, velocity.z).length().abs();
-        let _vertical_speed = velocity.y;
+        // let _vertical_speed = velocity.y;
         prev_pos.0 = pos.translation;
 
         let grounded = ahoy_state.grounded.is_some();
-
-        // MANTLE
-        if ahoy_state.mantle.is_some() {
-            // TODO: mantle
-            continue;
-        }
 
         // in the air animation
         if !grounded {
@@ -530,14 +523,13 @@ fn animate(
             let current_node = ani.nodes[ani.current.clip_index()];
             if let Some(active) = animation_player.animation_mut(current_node) {
                 match ani.current {
-                    AnimationState::Run(s)
-                    | AnimationState::Sprint(s)
-                    | AnimationState::Crouch(s) => active.set_speed(s * 0.1), // damping actual speed
+                    AnimationState::Run(s) | AnimationState::Crouch(s) => {
+                        active.set_speed(s.clamp(0.0, 2.0))
+                    }
                     _ => active.set_speed(1.0),
                 };
             }
 
-            debug!("current: {:?}, next: {next:?}", ani.current);
             ani.current = next;
         }
     }
@@ -574,34 +566,6 @@ impl Animations {
             self.current = state;
         }
     }
-
-    pub fn idle(&mut self) {
-        self.request(AnimationState::StandIdle);
-    }
-
-    pub fn run(&mut self, speed: f32) {
-        self.request(AnimationState::Run(speed));
-    }
-
-    pub fn sprint(&mut self, speed: f32) {
-        self.request(AnimationState::Sprint(speed));
-    }
-
-    pub fn crouch(&mut self, speed: f32) {
-        self.request(AnimationState::Crouch(speed));
-    }
-
-    pub fn crouch_idle(&mut self) {
-        self.request(AnimationState::CrouchIdle);
-    }
-
-    pub fn fall(&mut self) {
-        self.request(AnimationState::Jump);
-    }
-
-    pub fn is_falling(&self) -> bool {
-        self.current.is_jumping()
-    }
 }
 
 /// The order is important here because we use it as indexes for animation node vec
@@ -611,7 +575,6 @@ pub enum AnimationState {
     #[default]
     StandIdle,
     Run(f32),
-    Sprint(f32),
     Jump,
     Crouch(f32),
     CrouchIdle,
@@ -621,16 +584,12 @@ impl AnimationState {
         match self {
             AnimationState::StandIdle => 0,
             AnimationState::Run(_) => 1,
-            AnimationState::Sprint(_) => 2,
-            AnimationState::Jump => 3,
-            AnimationState::Crouch(_) => 4,
-            AnimationState::CrouchIdle => 5,
+            AnimationState::Jump => 2,
+            AnimationState::Crouch(_) => 3,
+            AnimationState::CrouchIdle => 4,
         }
     }
-    pub fn is_running(&self) -> bool {
-        matches!(self, AnimationState::Run(_))
-    }
-    pub fn is_jumping(&self) -> bool {
+    fn is_jumping(&self) -> bool {
         matches!(self, AnimationState::Jump)
     }
 }
