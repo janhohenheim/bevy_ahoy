@@ -85,8 +85,10 @@ fn main() -> AppExit {
         .insert_resource(ClearColor(tailwind::SKY_200.into()))
         .add_systems(Startup, setup)
         .add_systems(
-            Update,
-            (rotate_player, calcucate_animations, animate).chain(),
+            FixedUpdate,
+            (rotate_player, calcucate_animations, animate)
+                .chain()
+                .in_set(AhoySystems::MoveCharacters),
         )
         .add_observer(spawn_player)
         .add_systems(
@@ -376,7 +378,7 @@ fn rotate_player(
 
             // rotate model
             let rotation = Quat::from_rotation_y(input_dir.x.atan2(input_dir.z));
-            pos.rotation = pos.rotation.slerp(rotation, 0.5);
+            pos.rotation = pos.rotation.slerp(rotation, 0.2);
         }
     }
 }
@@ -444,7 +446,7 @@ fn calcucate_animations(
         &mut Player,
     )>,
 ) {
-    const IDLE_ANIMATION_THRESHOLD: f32 = 1.0;
+    const IDLE_ANIMATION_THRESHOLD: f32 = 0.1;
 
     for (ahoy_state, pos, mut prev_pos, mut player) in players.iter_mut() {
         let animation = &mut player.animation;
