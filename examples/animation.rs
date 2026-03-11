@@ -440,6 +440,7 @@ fn prepare_animations(
 fn calcucate_animations(
     time: Res<Time>,
     mut players: Query<(
+        &CharacterController,
         &CharacterControllerState,
         &Transform,
         &mut PreviousPosition,
@@ -448,37 +449,40 @@ fn calcucate_animations(
 ) {
     const IDLE_ANIMATION_THRESHOLD: f32 = 0.1;
 
-    for (ahoy_state, pos, mut prev_pos, mut player) in players.iter_mut() {
+    for (ahoy, ahoy_state, pos, mut prev_pos, mut player) in players.iter_mut() {
         let animation = &mut player.animation;
 
         let displacement = pos.translation - prev_pos.0;
         let velocity = displacement / time.delta_secs();
         let horizontal_speed = Vec3::new(velocity.x, 0.0, velocity.z).length().abs();
-        // let _vertical_speed = velocity.y;
         prev_pos.0 = pos.translation;
 
         let grounded = ahoy_state.grounded.is_some();
+        let moving = horizontal_speed > IDLE_ANIMATION_THRESHOLD;
 
         // in the air animation
         if !grounded {
-            animation.request(AnimationState::Jump);
+            if !animation.current.is_jumping() {
+                animation.request(AnimationState::Jump);
+            }
             continue;
         }
 
         // at this point we are grounded
         if grounded && animation.current.is_jumping() {
-            if horizontal_speed > IDLE_ANIMATION_THRESHOLD {
-                animation.request(AnimationState::Run(horizontal_speed));
+            if moving {
+                // landed while running? skip the thud, go straight to Run
+                animation.request(AnimationState::Run(ahoy.speed));
             } else {
-                animation.request(AnimationState::Jump);
+                animation.request(AnimationState::StandIdle);
             }
             continue;
         }
 
         // CROUCH
         if ahoy_state.crouching {
-            if horizontal_speed > IDLE_ANIMATION_THRESHOLD {
-                animation.request(AnimationState::Crouch(horizontal_speed));
+            if moving {
+                animation.request(AnimationState::Crouch(ahoy.speed));
             } else {
                 animation.request(AnimationState::CrouchIdle);
             }
@@ -486,8 +490,8 @@ fn calcucate_animations(
         }
 
         // and finally RUN\IDLE
-        if horizontal_speed > IDLE_ANIMATION_THRESHOLD {
-            animation.request(AnimationState::Run(horizontal_speed));
+        if moving {
+            animation.request(AnimationState::Run(ahoy.speed));
         } else {
             animation.request(AnimationState::StandIdle);
         }
