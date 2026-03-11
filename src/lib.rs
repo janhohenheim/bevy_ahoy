@@ -16,24 +16,28 @@ pub mod prelude {
     };
 
     pub use crate::{
-        AhoyPlugins, AhoySystems, CharacterController, CharacterControllerState, PickupConfig,
+        AhoyPlugins, AhoySystems, CharacterController, CharacterControllerState,
         camera::{CharacterControllerCamera, CharacterControllerCameraOf},
         input::{
-            Climbdown, Crane, Crouch, DropObject, GlobalMovement, Jump, Mantle, Movement,
-            PullObject, RotateCamera, SwimUp, Tac, ThrowObject, YankCamera,
+            Climbdown, Crane, Crouch, GlobalMovement, Jump, Mantle, Movement, RotateCamera, SwimUp,
+            Tac, YankCamera,
         },
-        pickup,
         water::{Water, WaterLevel, WaterState},
+    };
+
+    #[cfg(feature = "pickup")]
+    pub use crate::{
+        PickupConfig,
+        input::{DropObject, PullObject, ThrowObject},
+        pickup,
     };
 }
 
-pub use crate::{
-    camera::AhoyCameraPlugin, dynamics::AhoyDynamicPlugin,
-    fixed_update_utils::AhoyFixedUpdateUtilsPlugin, input::AhoyInputPlugin, kcc::AhoyKccPlugin,
-    pickup_glue::AhoyPickupGluePlugin, water::AhoyWaterPlugin,
-};
-use crate::{input::AccumulatedInput, prelude::*};
+#[cfg(feature = "pickup")]
+pub use crate::pickup_glue::AhoyPickupGluePlugin;
+#[cfg(feature = "pickup")]
 use avian_pickup::AvianPickupPlugin;
+#[cfg(feature = "pickup")]
 pub use avian_pickup::{
     self as pickup,
     prelude::{
@@ -42,31 +46,33 @@ pub use avian_pickup::{
         AvianPickupActorThrowConfig as PickupThrowConfig,
     },
 };
-use avian3d::{
-    character_controller::move_and_slide::MoveHitData,
-    parry::shape::{Capsule, SharedShape},
+
+pub use crate::{
+    camera::AhoyCameraPlugin, dynamics::AhoyDynamicPlugin,
+    fixed_update_utils::AhoyFixedUpdateUtilsPlugin, input::AhoyInputPlugin, kcc::AhoyKccPlugin,
+    water::AhoyWaterPlugin,
 };
+use crate::{input::AccumulatedInput, prelude::*};
+use avian3d::character_controller::move_and_slide::MoveHitData;
 use bevy_app::PluginGroupBuilder;
-use bevy_ecs::{
-    intern::Interned, lifecycle::HookContext, relationship::RelationshipSourceCollection as _,
-    schedule::ScheduleLabel, world::DeferredWorld,
-};
+use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy_time::Stopwatch;
 use core::time::Duration;
-use std::sync::Arc;
 
 pub mod camera;
 mod dynamics;
 mod fixed_update_utils;
 pub mod input;
 mod kcc;
+#[cfg(feature = "pickup")]
 mod pickup_glue;
 mod water;
 
 /// Plugin group for Ahoy's internal plugins.
 ///
 /// It requires you to add [`PhysicsPlugins`] and [`EnhancedInputPlugin`] to work properly.
-/// Also adds [`AvianPickupPlugin`].
+///
+/// Also adds [`AvianPickupPlugin`] if `pickup` feature is enabled.
 pub struct AhoyPlugins {
     schedule: Interned<dyn ScheduleLabel>,
 }
@@ -90,7 +96,7 @@ impl Default for AhoyPlugins {
 
 impl PluginGroup for AhoyPlugins {
     fn build(self) -> PluginGroupBuilder {
-        PluginGroupBuilder::start::<Self>()
+        let plugin = PluginGroupBuilder::start::<Self>()
             .add(AhoySchedulePlugin {
                 schedule: self.schedule,
             })
@@ -101,11 +107,16 @@ impl PluginGroup for AhoyPlugins {
             })
             .add(AhoyWaterPlugin)
             .add(AhoyFixedUpdateUtilsPlugin)
-            .add(AhoyPickupGluePlugin)
             .add(AhoyDynamicPlugin {
                 schedule: self.schedule,
-            })
+            });
+
+        #[cfg(feature = "pickup")]
+        let plugin = plugin
             .add(AvianPickupPlugin::default())
+            .add(AhoyPickupGluePlugin);
+
+        plugin
     }
 }
 
@@ -152,7 +163,6 @@ pub enum AhoySystems {
     SpeculativeMargin::ZERO,
     CollidingEntities,
 )]
-#[component(on_add=CharacterController::on_add)]
 pub struct CharacterController {
     pub crouch_height: f32,
     pub filter: SpatialQueryFilter,
@@ -162,6 +172,7 @@ pub struct CharacterController {
     pub step_down_detection_distance: f32,
     pub min_walk_cos: f32,
     pub stop_speed: f32,
+    pub air_friction: Friction,
     pub friction_hz: f32,
     pub acceleration_hz: f32,
     pub air_acceleration_hz: f32,
@@ -217,6 +228,7 @@ impl Default for CharacterController {
             ground_distance: 0.05,
             min_walk_cos: 40.0_f32.to_radians().cos(),
             stop_speed: 2.54,
+            air_friction: Friction::default(),
             friction_hz: 12.0,
             acceleration_hz: 8.0,
             air_acceleration_hz: 12.0,
@@ -268,24 +280,6 @@ impl Default for CharacterController {
     }
 }
 
-impl CharacterController {
-    pub fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        let has_collider = world.entity(ctx.entity).contains::<Collider>();
-
-        if has_collider {
-            let entity = ctx.entity;
-            world.commands().queue(move |world: &mut World| {
-                world.run_system_cached_with(setup_collider, entity)
-            });
-        } else {
-            world
-                .commands()
-                .entity(ctx.entity)
-                .observe(on_insert_collider);
-        }
-    }
-}
-
 /// The look direction for the character.
 ///
 /// Usually, this is populated by the camera.
@@ -327,57 +321,6 @@ impl CharacterLook {
     pub fn to_quat(&self) -> Quat {
         Quat::from_euler(EulerRot::YXZ, self.yaw, self.pitch, 0.0)
     }
-}
-
-fn on_insert_collider(trigger: On<Insert, Collider>, mut commands: Commands) {
-    commands.run_system_cached_with(setup_collider, trigger.entity);
-}
-
-fn setup_collider(
-    In(entity): In<Entity>,
-    mut kcc: Query<(
-        &mut CharacterController,
-        &mut CharacterControllerDerivedProps,
-        &Collider,
-    )>,
-) {
-    let Ok((mut cfg, mut derived, collider)) = kcc.get_mut(entity) else {
-        return;
-    };
-    cfg.filter.excluded_entities.add(entity);
-
-    let standing_aabb = collider.aabb(default(), Rotation::default());
-    let standing_height = standing_aabb.max.y - standing_aabb.min.y;
-
-    derived.standing_collider = collider.clone();
-
-    let frac = cfg.crouch_height / standing_height;
-
-    let mut crouching_collider = Collider::from(SharedShape(Arc::from(
-        derived.standing_collider.shape().clone_dyn(),
-    )));
-
-    if crouching_collider.shape().as_capsule().is_some() {
-        let capsule = crouching_collider
-            .shape_mut()
-            .make_mut()
-            .as_capsule_mut()
-            .unwrap();
-        let radius = capsule.radius;
-        let new_height = (cfg.crouch_height - radius).max(0.0);
-        *capsule = Capsule::new_y(new_height / 2.0, radius);
-    } else {
-        // note: well-behaved shapes like cylinders and cuboids will not actually subdivide when scaled, yay
-        crouching_collider.set_scale(vec3(1.0, frac, 1.0), 16);
-    }
-
-    derived.crouching_collider = Collider::compound(vec![(
-        Vec3::Y * (cfg.crouch_height - standing_height) / 2.0,
-        Rotation::default(),
-        crouching_collider,
-    )]);
-
-    derived.hand_collider = Collider::from(cfg.min_ledge_grab_space);
 }
 
 #[derive(Component, Clone, Reflect, PartialEq, Debug)]

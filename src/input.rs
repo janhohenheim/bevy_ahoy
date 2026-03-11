@@ -1,3 +1,4 @@
+#[cfg(feature = "pickup")]
 use avian_pickup::input::{AvianPickupAction, AvianPickupInput};
 use bevy_time::Stopwatch;
 
@@ -17,9 +18,6 @@ impl Plugin for AhoyInputPlugin {
             .add_observer(apply_tac)
             .add_observer(apply_crouch)
             .add_observer(apply_swim_up)
-            .add_observer(apply_drop)
-            .add_observer(apply_pull)
-            .add_observer(apply_throw)
             .add_observer(apply_crane)
             .add_observer(apply_mantle)
             .add_observer(apply_climbdown)
@@ -30,6 +28,11 @@ impl Plugin for AhoyInputPlugin {
                     .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             )
             .add_systems(PreUpdate, tick_timers.in_set(EnhancedInputSystems::Update));
+
+        #[cfg(feature = "pickup")]
+        app.add_observer(apply_drop)
+            .add_observer(apply_pull)
+            .add_observer(apply_throw);
     }
 }
 
@@ -77,14 +80,17 @@ pub struct RotateCamera;
 #[action_output(f32)]
 pub struct YankCamera;
 
+#[cfg(feature = "pickup")]
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct PullObject;
 
+#[cfg(feature = "pickup")]
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct DropObject;
 
+#[cfg(feature = "pickup")]
 #[derive(Debug, InputAction)]
 #[action_output(bool)]
 pub struct ThrowObject;
@@ -178,6 +184,7 @@ fn apply_climbdown(
     }
 }
 
+#[cfg(feature = "pickup")]
 fn apply_pull(
     crouch: On<Fire<PullObject>>,
     mut avian_pickup_input_writer: MessageWriter<AvianPickupInput>,
@@ -194,6 +201,7 @@ fn apply_pull(
     });
 }
 
+#[cfg(feature = "pickup")]
 fn apply_drop(
     crouch: On<Fire<DropObject>>,
     mut avian_pickup_input_writer: MessageWriter<AvianPickupInput>,
@@ -210,6 +218,7 @@ fn apply_drop(
     });
 }
 
+#[cfg(feature = "pickup")]
 fn apply_throw(
     crouch: On<Fire<ThrowObject>>,
     mut avian_pickup_input_writer: MessageWriter<AvianPickupInput>,

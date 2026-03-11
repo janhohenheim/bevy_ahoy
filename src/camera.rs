@@ -1,5 +1,6 @@
 use std::{f32::consts::TAU, time::Duration};
 
+#[cfg(feature = "pickup")]
 use avian_pickup::actor::AvianPickupActor;
 use bevy_ecs::{lifecycle::HookContext, relationship::Relationship, world::DeferredWorld};
 
@@ -30,7 +31,8 @@ impl Plugin for AhoyCameraPlugin {
 
 #[derive(Component, Clone, Copy, Debug)]
 #[relationship(relationship_target = CharacterControllerCamera)]
-#[require(AvianPickupActor, Transform)]
+#[require(Transform)]
+#[cfg_attr(feature = "pickup", require(AvianPickupActor))]
 #[component(on_add = Self::on_add)]
 pub struct CharacterControllerCameraOf {
     #[relationship]
@@ -96,6 +98,7 @@ pub(crate) fn sync_camera_transform(
     // TODO: DIY TransformHelper to use current global transform.
     // Can't use GlobalTransform directly: outdated -> jitter
     // Can't use TransformHelper directly: access conflict with &mut Transform
+    // Can't use Position: that is not interpolated -> jitter
     for (mut camera_transform, camera) in cameras.iter_mut() {
         if let Ok((kcc_transform, cfg, state, derived)) = kccs.get(camera.character_controller) {
             let height = derived

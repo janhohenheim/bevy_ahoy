@@ -232,7 +232,7 @@ impl TriggerTeleport {
                  reset: Single<Entity, With<Action<util::Reset>>>| {
                     commands
                         .entity(*reset)
-                        .insert(ActionMock::once(ActionState::Fired, true));
+                        .insert(ActionMock::once(TriggerState::Fired, true));
                 },
             )
             .with_entity(ctx.entity),
