@@ -63,6 +63,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
                     bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
                 ),
                 (
+                    Action::<Sprint>::new(),
+                    bindings![KeyCode::ShiftLeft, GamepadButton::LeftTrigger],
+                ),
+                (
                     Action::<RotateCamera>::new(),
                     Bindings::spawn((
                         // tweak mouse and right stick sensitivity

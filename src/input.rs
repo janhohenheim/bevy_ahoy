@@ -18,6 +18,7 @@ impl Plugin for AhoyInputPlugin {
             .add_observer(apply_global_movement)
             .add_observer(apply_tac)
             .add_observer(apply_crouch)
+            .add_observer(apply_sprint)
             .add_observer(apply_swim_up)
             .add_observer(apply_crane)
             .add_observer(apply_mantle)
@@ -74,6 +75,10 @@ pub struct Climbdown;
 pub struct Crouch;
 
 #[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct Sprint;
+
+#[derive(Debug, InputAction)]
 #[action_output(Vec2)]
 pub struct RotateCamera;
 
@@ -112,6 +117,8 @@ pub struct AccumulatedInput {
     pub tac: Option<Stopwatch>,
     // Whether any frame since the last fixed update loop input a crouch
     pub crouched: bool,
+    // Whether any frame since the last fixed update loop input a sprint
+    pub sprinting: bool,
     pub craned: Option<Stopwatch>,
     pub mantled: Option<Stopwatch>,
     pub climbdown: Option<Stopwatch>,
@@ -161,6 +168,12 @@ fn apply_tac(tac: On<Fire<Tac>>, mut accumulated_inputs: Query<&mut AccumulatedI
 fn apply_crouch(crouch: On<Fire<Crouch>>, mut accumulated_inputs: Query<&mut AccumulatedInput>) {
     if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(crouch.context) {
         accumulated_inputs.crouched = true;
+    }
+}
+
+fn apply_sprint(sprint: On<Fire<Sprint>>, mut accumulated_inputs: Query<&mut AccumulatedInput>) {
+    if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(sprint.context) {
+        accumulated_inputs.sprinting = true;
     }
 }
 
@@ -246,6 +259,7 @@ fn clear_accumulated_input(mut accumulated_inputs: Query<&mut AccumulatedInput>)
             craned: accumulated_input.craned.clone(),
             mantled: accumulated_input.mantled.clone(),
             crouched: default(),
+            sprinting: default(),
             climbdown: accumulated_input.climbdown.clone(),
         }
     }

@@ -196,6 +196,11 @@ impl PlayerInput {
                     bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
                 ),
                 (
+                    Action::<Sprint>::new(),
+                    ActionSettings { consume_input: false, ..default() },
+                    bindings![KeyCode::ShiftLeft, GamepadButton::LeftTrigger],
+                ),
+                (
                     Action::<SwimUp>::new(),
                     bindings![KeyCode::Space, GamepadButton::South],
                 ),

@@ -186,6 +186,7 @@ fn run_kcc(
         update_grounded(&move_and_slide, &colliders, &time, &mut ctx, &mut transform);
 
         handle_crouching(&move_and_slide, &waters, &mut ctx, &mut transform);
+        handle_sprinting(&mut ctx);
 
         if ctx.water.level <= WaterLevel::Feet {
             // here we'd handle things like spectator, dead, noclip, etc.
@@ -389,7 +390,12 @@ fn ground_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx
         return;
     }
 
-    let accel_speed = wish_speed * acceleration_hz * time.delta_secs();
+    let accel_reference_speed = if ctx.state.crouching {
+        ctx.cfg.speed
+    } else {
+        wish_speed
+    };
+    let accel_speed = accel_reference_speed * acceleration_hz * time.delta_secs();
     let accel_speed = f32::min(accel_speed, add_speed);
 
     ctx.velocity.0 += accel_speed * wish_dir;
@@ -423,7 +429,12 @@ fn air_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx: &
         return;
     }
 
-    let accel_speed = wish_speed * acceleration_hz * time.delta_secs();
+    let accel_reference_speed = if ctx.state.crouching {
+        ctx.cfg.speed
+    } else {
+        wish_speed
+    };
+    let accel_speed = accel_reference_speed * acceleration_hz * time.delta_secs();
     let accel_speed = f32::min(accel_speed, add_speed);
 
     ctx.velocity.0 += accel_speed * wish_dir;
@@ -466,7 +477,12 @@ fn water_accelerate(wish_velocity: Vec3, acceleration_hz: f32, time: &Time, ctx:
         return;
     }
 
-    let accel_speed = wish_speed * acceleration_hz * time.delta_secs();
+    let accel_reference_speed = if ctx.state.crouching {
+        ctx.cfg.speed
+    } else {
+        wish_speed
+    };
+    let accel_speed = accel_reference_speed * acceleration_hz * time.delta_secs();
     let accel_speed = f32::min(accel_speed, add_speed);
 
     ctx.velocity.0 += accel_speed * wish_dir;
@@ -1538,9 +1554,11 @@ fn calculate_wish_velocity(ctx: &CtxItem) -> Vec3 {
     let wish_vel = movement.y * forward + movement.x * right;
     let wish_dir = wish_vel.normalize_or_zero();
 
-    // clamp the speed lower if ducking
+    // clamp the speed lower if ducking, higher if sprinting
     let speed = if ctx.state.crouching {
         ctx.cfg.speed * ctx.cfg.crouch_speed_scale
+    } else if ctx.state.sprinting {
+        ctx.cfg.speed * ctx.cfg.sprint_speed_scale
     } else {
         ctx.cfg.speed
     };
@@ -1556,9 +1574,11 @@ fn calculate_3d_wish_velocity(ctx: &CtxItem) -> Vec3 {
     let wish_vel = movement.y * forward + movement.x * right;
     let wish_dir = wish_vel.normalize_or_zero();
 
-    // clamp the speed lower if ducking
+    // clamp the speed lower if ducking, higher if sprinting
     let speed = if ctx.state.crouching {
         ctx.cfg.speed * ctx.cfg.crouch_speed_scale
+    } else if ctx.state.sprinting {
+        ctx.cfg.speed * ctx.cfg.sprint_speed_scale
     } else {
         ctx.cfg.speed
     };
@@ -1579,6 +1599,12 @@ fn handle_crouching(
         let is_intersecting = is_intersecting(move_and_slide, waters, ctx, transform);
         ctx.state.crouching = is_intersecting;
     }
+}
+
+fn handle_sprinting(ctx: &mut CtxItem) {
+    // Can only sprint when grounded and not crouching
+    ctx.state.sprinting =
+        ctx.input.sprinting && ctx.state.grounded.is_some() && !ctx.state.crouching;
 }
 
 #[must_use]
@@ -1636,3 +1662,4 @@ pub(crate) fn forward(orientation: Quat) -> Vec3 {
 pub(crate) fn right(orientation: Quat) -> Vec3 {
     orientation * Vec3::X
 }
+
