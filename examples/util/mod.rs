@@ -5,8 +5,10 @@ use std::{collections::VecDeque, f32::consts::TAU, time::Duration};
 use avian3d::prelude::*;
 use bevy::{
     camera::Exposure,
-    light::{CascadeShadowConfigBuilder, DirectionalLightShadowMap, light_consts::lux},
-    pbr::{Atmosphere, ScatteringMedium},
+    light::{
+        Atmosphere, CascadeShadowConfigBuilder, DirectionalLightShadowMap,
+        atmosphere::ScatteringMedium, light_consts::lux,
+    },
     platform::collections::HashSet,
     post_process::bloom::Bloom,
     prelude::*,
@@ -29,7 +31,7 @@ impl Plugin for ExampleUtilPlugin {
             FixPointerUnlockPlugin,
             FramepacePlugin,
         ))
-        .add_systems(Startup, (setup_ui, spawn_crosshair))
+        .add_systems(Startup, (setup_ui, spawn_atmosphere, spawn_crosshair))
         .add_systems(
             Update,
             (
@@ -229,12 +231,7 @@ fn reset_player_inner(
     camera_transform.rotation = Quat::IDENTITY;
 }
 
-fn tweak_camera(
-    insert: On<Insert, Camera3d>,
-    mut commands: Commands,
-    assets: Res<AssetServer>,
-    mut scattering_mediums: ResMut<Assets<ScatteringMedium>>,
-) {
+fn tweak_camera(insert: On<Insert, Camera3d>, mut commands: Commands, assets: Res<AssetServer>) {
     commands.entity(insert.entity).insert((
         EnvironmentMapLight {
             diffuse_map: assets.load("environment_maps/voortrekker_interior_1k_diffuse.ktx2"),
@@ -246,7 +243,6 @@ fn tweak_camera(
             fov: 70.0_f32.to_radians(),
             ..default()
         }),
-        Atmosphere::earthlike(scattering_mediums.add(ScatteringMedium::default())),
         Exposure { ev100: 9.0 },
         Bloom::default(),
     ));
@@ -302,6 +298,15 @@ fn unlock_cursor_web(
 ) {
     cursor_options.grab_mode = CursorGrabMode::None;
     cursor_options.visible = true;
+}
+
+fn spawn_atmosphere(
+    mut commands: Commands,
+    mut scattering_mediums: ResMut<Assets<ScatteringMedium>>,
+) {
+    commands.spawn(Atmosphere::earth(
+        scattering_mediums.add(ScatteringMedium::default()),
+    ));
 }
 
 /// Show a crosshair for better aiming
