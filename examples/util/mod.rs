@@ -335,7 +335,7 @@ fn tweak_materials(
         let AssetEvent::LoadedWithDependencies { id } = event else {
             continue;
         };
-        let Some(mat) = mats.get_mut(*id) else {
+        let Some(mut mat) = mats.get_mut(*id) else {
             continue;
         };
         if mat
