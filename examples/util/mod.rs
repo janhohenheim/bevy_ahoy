@@ -266,7 +266,7 @@ fn tweak_directional_light(
     commands.spawn((
         // The shadow map can only be configured on a freshly spawned light
         DirectionalLight {
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             illuminance: lux::AMBIENT_DAYLIGHT,
             ..*light
         },
