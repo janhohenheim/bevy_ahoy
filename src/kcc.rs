@@ -1166,7 +1166,7 @@ fn closest_wall_normal(
         transform.rotation,
         dist + ctx.cfg.move_and_slide.skin_width,
         &ctx.cfg.filter,
-        |contact_point, normal| {
+        |_entity, contact_point, normal| {
             if normal.y.abs() < ctx.cfg.min_walk_cos
                 && !closest_wall.is_some_and(|(p, _)| p.penetration < contact_point.penetration)
             {
