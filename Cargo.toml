@@ -17,18 +17,19 @@ serialize = ["dep:serde", "avian3d/serialize", "bevy_math/serialize", "avian_pic
 pickup = ["dep:avian_pickup"]
 
 [dependencies]
-avian3d = { version = "0.6", default-features = false, features = ["parry-f32", "3d", "f32"] }
-bevy_ecs = { version = "0.18", default-features = false }
-bevy_app = { version = "0.18", default-features = false }
-bevy_derive = { version = "0.18", default-features = false }
-bevy_utils = { version = "0.18", default-features = false }
-bevy_math = { version = "0.18", default-features = false }
-bevy_reflect = { version = "0.18", default-features = false }
-bevy_transform = { version = "0.18", default-features = false }
-bevy_time = { version = "0.18", default-features = false }
-bevy_enhanced_input = { version = "0.24", default-features = false }
+avian3d = { version = "0.7", default-features = false, features = ["parry-f32", "3d", "f32"] }
+bevy_ecs = { version = "0.19", default-features = false }
+bevy_app = { version = "0.19", default-features = false }
+bevy_derive = { version = "0.19", default-features = false }
+bevy_utils = { version = "0.19", default-features = false }
+bevy_math = { version = "0.19", default-features = false }
+bevy_reflect = { version = "0.19", default-features = false }
+bevy_transform = { version = "0.19", default-features = false }
+bevy_time = { version = "0.19", default-features = false }
+bevy_enhanced_input = { version = "0.26", default-features = false }
 tracing = { version = "0.1", default-features = false }
-avian_pickup = { version = "0.5.0", default-features = false, optional = true }
+# Pending PR: https://github.com/janhohenheim/avian_pickup/pull/33
+avian_pickup = { git = "https://github.com/alexandre-v1/avian_pickup", rev = "5c8d42feedae13ed4b71a8e5686fa0ae5d81a5a5", default-features = false, optional = true }
 serde = { version = "1", default-features = false, features = ["derive"], optional = true }
 
 [dev-dependencies]
