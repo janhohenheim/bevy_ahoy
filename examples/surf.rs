@@ -96,7 +96,7 @@ fn main() -> AppExit {
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.spawn(SceneRoot(assets.load("maps/utopia.map#Scene")));
+    commands.spawn(WorldAssetRoot(assets.load("maps/utopia.map#Scene")));
     commands.spawn(Camera3d::default());
 }
 

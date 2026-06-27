@@ -95,7 +95,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     // Ahoy will deal with it all.
     // Here we load a glTF file and create a convex hull collider for each mesh.
     commands.spawn((
-        SceneRoot(assets.load("maps/playground.glb#Scene0")),
+        WorldAssetRoot(assets.load("maps/playground.glb#Scene0")),
         RigidBody::Static,
         ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
     ));
