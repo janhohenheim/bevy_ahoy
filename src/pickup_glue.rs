@@ -31,12 +31,12 @@ fn filter_out_picked_up_prop(
 }
 
 fn filter_in_unpicked_prop(
-    replace: On<Replace, Holding>,
+    discard: On<Discard, Holding>,
     pickup_actor: Query<(&Holding, &CharacterControllerCameraOf), Changed<AvianPickupActorState>>,
     mut kcc: Query<&mut CharacterController>,
     prop: Query<&RigidBodyColliders>,
 ) {
-    let Ok((holding, camera_of)) = pickup_actor.get(replace.entity) else {
+    let Ok((holding, camera_of)) = pickup_actor.get(discard.entity) else {
         return;
     };
     let Ok(mut controller) = kcc.get_mut(camera_of.get()) else {
