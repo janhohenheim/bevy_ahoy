@@ -173,10 +173,10 @@ fn copy_character_look_to_camera(
 
 fn rotate_camera(
     rotate: On<Fire<RotateCamera>>,
-    cameras: Query<&CharacterControllerCamera>,
+    mut cameras: Query<(&CharacterControllerCamera, &mut CharacterLook)>,
     mut transforms: Query<&mut Transform>,
 ) {
-    let Ok(camera) = cameras.get(rotate.context) else {
+    let Ok((camera, mut character_look)) = cameras.get_mut(rotate.context) else {
         return;
     };
     let Ok(mut transform) = transforms.get_mut(camera.get()) else {
@@ -189,17 +189,19 @@ fn rotate_camera(
     pitch += delta.y.to_radians();
     pitch = pitch.clamp(-TAU / 4.0 + 0.01, TAU / 4.0 - 0.01);
 
+    character_look.yaw = yaw;
+    character_look.pitch = pitch;
     transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
 }
 
 fn yank_camera(
     trigger: On<Fire<YankCamera>>,
-    cameras: Query<&CharacterControllerCamera>,
+    mut cameras: Query<(&CharacterControllerCamera, &mut CharacterLook)>,
     camera_ofs: Query<&CharacterControllerCameraOf>,
     time: Res<Time>,
     mut transforms: Query<&mut Transform>,
 ) {
-    let Ok(camera) = cameras.get(trigger.context) else {
+    let Ok((camera, mut character_look)) = cameras.get_mut(trigger.context) else {
         return;
     };
     let Ok(camera_of) = camera_ofs.get(camera.get()) else {
@@ -213,5 +215,7 @@ fn yank_camera(
     let rotation_delta = camera_of.yank_speed * trigger.value * time.delta_secs();
     yaw -= rotation_delta;
 
+    character_look.yaw = yaw;
+    character_look.pitch = pitch;
     transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
 }
