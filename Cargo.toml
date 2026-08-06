@@ -1,7 +1,7 @@
 [package]
 name = "bevy_ahoy"
 authors = ["Jan Hohenheim <jan@hohenheim.ch>"]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0 "
 description = "A fun 3D Kinematic Character Controller for Bevy + Avian + BEI."
@@ -28,21 +28,16 @@ bevy_transform = { version = "0.19", default-features = false }
 bevy_time = { version = "0.19", default-features = false }
 bevy_enhanced_input = { version = "0.26", default-features = false }
 tracing = { version = "0.1", default-features = false }
-# Pending PR: https://github.com/janhohenheim/avian_pickup/pull/33
-avian_pickup = { git = "https://github.com/alexandre-v1/avian_pickup", rev = "5c8d42feedae13ed4b71a8e5686fa0ae5d81a5a5", default-features = false, optional = true }
+avian_pickup = { version = "0.6", default-features = false, optional = true }
 serde = { version = "1", default-features = false, features = ["derive"], optional = true }
 
 [dev-dependencies]
 bevy = { version = "0.19", features = ["track_location", "dynamic_linking", "file_watcher"] }
-# Pinned to `main`, pending 0.14.0 release
-bevy_trenchbroom = { git = "https://github.com/Noxmore/bevy_trenchbroom", rev = "ca9bc9e8b4a9ce57c48966330bce4b65b4fd8353", features = ["avian_f32"] }
-# Pinned to `main`, pending new release
-bevy_mod_mipmap_generator = { git = "https://github.com/DGriffin91/bevy_mod_mipmap_generator", rev = "5f9c33a058fac212d568ac97b26ea1aa67489687" }
+bevy_trenchbroom = { version = "0.14.0-rc", features = ["avian_f32"] }
+bevy_mod_mipmap_generator = "0.2"
 avian3d = "0.7.0"
-# Pending PR: https://github.com/aevyrie/bevy_framepace/pull/77
-bevy_framepace = { git = "https://github.com/hacknus/bevy_framepace", rev = "4a950ca526bd4fb56d03b7caf28a04f2bbac2123" }
-# Pending PR: https://github.com/janhohenheim/bevy_fix_cursor_unlock_web/pull/4
-bevy_fix_cursor_unlock_web = { git = "https://github.com/andogq/bevy_fix_cursor_unlock_web", rev = "858e6e3ab5caaa68011c747ce28c58e99e01f20e" }
+bevy_framepace = "0.22.0"
+bevy_fix_cursor_unlock_web = "0.4"
 wasm-bindgen = "=0.2.108"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
