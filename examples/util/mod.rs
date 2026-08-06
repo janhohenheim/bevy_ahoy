@@ -9,6 +9,7 @@ use bevy::{
         Atmosphere, CascadeShadowConfigBuilder, DirectionalLightShadowMap,
         atmosphere::ScatteringMedium, light_consts::lux,
     },
+    pbr::AtmosphereSettings,
     platform::collections::HashSet,
     post_process::bloom::Bloom,
     prelude::*,
@@ -245,6 +246,7 @@ fn tweak_camera(insert: On<Insert, Camera3d>, mut commands: Commands, assets: Re
         }),
         Exposure { ev100: 9.0 },
         Bloom::default(),
+        AtmosphereSettings::default(),
     ));
 }
 
