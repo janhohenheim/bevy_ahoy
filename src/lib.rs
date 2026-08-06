@@ -22,6 +22,10 @@ pub mod prelude {
             Climbdown, Crane, Crouch, GlobalMovement, Jump, Mantle, Movement, RotateCamera, SwimUp,
             Tac, YankCamera,
         },
+        jump::{
+            JumpActuation, JumpActuationCurve, JumpCancelMode, JumpCancelPostApex,
+            JumpCancelPreApex, JumpTrigger,
+        },
         water::{Water, WaterLevel, WaterState},
     };
 
@@ -63,6 +67,7 @@ pub mod camera;
 mod dynamics;
 mod fixed_update_utils;
 pub mod input;
+pub mod jump;
 mod kcc;
 #[cfg(feature = "pickup")]
 mod pickup_glue;
@@ -146,7 +151,7 @@ pub enum AhoySystems {
     ApplyForcesToDynamicRigidBodies,
 }
 
-#[derive(Component, Clone, Reflect, PartialEq, Debug)]
+#[derive(Component, Clone, Reflect, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component)]
@@ -187,7 +192,9 @@ pub struct CharacterController {
     pub air_speed: f32,
     pub move_and_slide: MoveAndSlideConfig,
     pub max_speed: f32,
+    /// The peak height of a jump.
     pub jump_height: f32,
+    pub jump_trigger: JumpTrigger,
     pub tac_power: f32,
     pub tac_jump_factor: f32,
     pub tac_input_buffer: Duration,
@@ -197,7 +204,11 @@ pub struct CharacterController {
     pub max_air_wish_speed: f32,
     pub tac_cooldown: Duration,
     pub unground_speed: f32,
+    /// The maximum elapsed time after leaving the ground that will execute a queued jump as if the
+    /// character were still grounded. Longer durations are more forgiving.
     pub coyote_time: Duration,
+    /// The maximum elapsed time between queuing a jump (while not grounded) and becoming grounded,
+    /// that will allow the queued jump to execute once grounded.
     pub jump_input_buffer: Duration,
     pub jump_crane_chain_time: Duration,
     pub crane_input_buffer: Duration,
@@ -246,6 +257,7 @@ impl Default for CharacterController {
             },
             max_speed: 100.0,
             jump_height: 1.8,
+            jump_trigger: JumpTrigger::default(),
             tac_power: 0.755,
             tac_jump_factor: 1.0,
             ledge_jump_power: 1.5,

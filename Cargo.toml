@@ -12,6 +12,7 @@ categories = ["game-development"]
 include = ["/src", "/license*", "/examples"]
 
 [features]
+debug_ahoy_assert = []
 default = ["pickup"]
 serialize = ["dep:serde", "avian3d/serialize", "bevy_math/serialize", "avian_pickup?/serialize"]
 pickup = ["dep:avian_pickup"]
