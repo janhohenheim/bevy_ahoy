@@ -17,7 +17,7 @@ use tracing::{error, warn};
 
 use crate::{
     AirJumpState, AirJumping, CharacterControllerDerivedProps, CharacterControllerOutput,
-    CharacterControllerState, CharacterLook, DashProgress, DashState, Dashing, JumpGravity,
+    CharacterControllerState, CharacterLook, DashProgress, DashState, Dashing, GravityScaling,
     MantleOutput, MantleState, WallRunProgress, WallRunState, WallRunning, input::AccumulatedInput,
     prelude::*,
 };
@@ -121,18 +121,18 @@ struct Ctx {
     dash: Option<Write<DashState>>,
     air_jump_cfg: Option<Read<AirJumping>>,
     air_jump: Option<Write<AirJumpState>>,
-    jump_gravity: Option<Read<JumpGravity>>,
+    gravity_scaling: Option<Read<GravityScaling>>,
     wall_run_cfg: Option<Read<WallRunning>>,
     wall_run: Option<Write<WallRunState>>,
     colliders: Read<RigidBodyColliders>,
 }
 
 impl CtxItem<'_, '_> {
-    /// Gravity scaled by [`JumpGravity`] while airborne; wall runs compensate unscaled gravity, so skip them.
+    /// Gravity scaled by [`GravityScaling`] while airborne; wall runs compensate unscaled gravity, so skip them.
     fn gravity(&self) -> f32 {
         let wall_running = self.wall_run.as_ref().is_some_and(|w| w.progress.is_some());
         let Some(cfg) = self
-            .jump_gravity
+            .gravity_scaling
             .filter(|_| self.state.grounded.is_none() && !wall_running)
         else {
             return self.cfg.gravity;

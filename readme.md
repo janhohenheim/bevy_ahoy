@@ -35,7 +35,7 @@ This tradeoff allows Ahoy to fully define its own separate model of how a charac
 - [x] **Dashing**: Burst in the movement direction on the ground or in the air. Jump out of a dash to keep its momentum. Opt in by adding `Dashing`
 - [x] **Tic Tacs**: Jump into walls and then kick off them again to gain height and speed
 - [x] **Air jumps**: jump again in the air, with configurable count and height. Opt in by adding `AirJumping`
-- [x] **Jump gravity**: scale gravity while rising, near the apex and falling for floatier or snappier jumps. Opt in by adding `JumpGravity`
+- [x] **Gravity scaling**: scale gravity while rising, near the apex and falling for floatier or snappier jumps. Opt in by adding `GravityScaling`
 - [x] **Wall running**: run along walls and jump off them. Touching a wall refreshes air jumps, so runs chain. Opt in by adding `WallRunning`
 - [x] **Mantling**: Hold the jump button near the ledge while either on the ground or in the air to grab it and climb up on it
 - [x] **Water**: Dive up and down in water, move slower, and jump differently out of it

@@ -17,7 +17,7 @@ pub mod prelude {
 
     pub use crate::{
         AhoyPlugins, AhoySystems, AirJumping, CharacterController, CharacterControllerState,
-        Dashing, JumpGravity, WallRunning,
+        Dashing, GravityScaling, WallRunning,
         camera::{CharacterControllerCamera, CharacterControllerCameraOf},
         input::{
             Climbdown, Crane, Crouch, Dash, GlobalMovement, Jump, Mantle, Movement, RotateCamera,
@@ -179,6 +179,8 @@ pub struct CharacterController {
     pub air_acceleration_hz: f32,
     pub water_acceleration_hz: f32,
     pub water_slowdown: f32,
+    /// Downward acceleration in m/s². Jump heights stay the same when this changes, only airtime does;
+    /// [`GravityScaling`] scales do change them.
     pub gravity: f32,
     pub water_gravity: f32,
     pub step_size: f32,
@@ -188,6 +190,8 @@ pub struct CharacterController {
     pub air_speed: f32,
     pub move_and_slide: MoveAndSlideConfig,
     pub max_speed: f32,
+    /// Peak height of a ground jump in meters, from where the feet left the ground.
+    /// Exact only without [`GravityScaling`]; e.g. a low `apex_scale` overshoots it.
     pub jump_height: f32,
     pub tac_power: f32,
     pub tac_jump_factor: f32,
@@ -288,8 +292,10 @@ impl Default for CharacterController {
 #[reflect(Component)]
 #[require(AirJumpState)]
 pub struct AirJumping {
-    /// Jumps allowed before touching the ground again.
+    /// Jumps allowed before landing. Touching a wall while [`WallRunning`] refills them.
     pub count: u8,
+    /// Height gained in meters, from where the jump happens; lower than [`CharacterController::jump_height`]
+    /// makes air jumps feel distinct. Exact only without [`GravityScaling`].
     pub height: f32,
 }
 
@@ -308,15 +314,18 @@ impl Default for AirJumping {
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component)]
-pub struct JumpGravity {
+pub struct GravityScaling {
+    /// Gravity multiplier while going up. Above 1 gives lower, snappier jumps; below 1 higher, floatier ones.
     pub rise_scale: f32,
-    /// Used while vertical speed is within `apex_threshold` of zero.
+    /// Gravity multiplier near the peak. Below 1 hangs in the air there; 1 disables the hang.
     pub apex_scale: f32,
+    /// Vertical speed in m/s under which you count as at the peak. Wider means a longer hang.
     pub apex_threshold: f32,
+    /// Gravity multiplier while falling. Above 1 drops faster; it doesn't change peak height.
     pub fall_scale: f32,
 }
 
-impl Default for JumpGravity {
+impl Default for GravityScaling {
     fn default() -> Self {
         Self {
             rise_scale: 1.0,
@@ -334,16 +343,21 @@ impl Default for JumpGravity {
 #[reflect(Component)]
 #[require(WallRunState)]
 pub struct WallRunning {
-    /// Horizontal speed along the wall needed to start and keep running.
+    /// Horizontal speed along the wall in m/s needed to start and keep running.
+    /// Above [`CharacterController::speed`], only extra momentum (dashes, bhops) gets you on walls.
     pub min_speed: f32,
+    /// Longest a single run lasts before you drop off.
     pub max_duration: Duration,
-    /// Fraction of gravity applied while running.
+    /// Multiplier on [`CharacterController::gravity`] while running.
+    /// `0.0` runs perfectly level, `1.0` falls as fast as normal.
     pub gravity_scale: f32,
+    /// How close in meters a wall must be to start or keep running on it.
     pub detection_distance: f32,
-    /// Speed away from the wall when jumping off.
+    /// Horizontal speed in m/s away from the wall when jumping off.
     pub jump_push: f32,
+    /// Height gained in meters when jumping off. Exact only without [`GravityScaling`].
     pub jump_height: f32,
-    /// Time after leaving a wall before another run can start.
+    /// Time after leaving a wall (or tic-tacing) before another run can start.
     pub reattach_cooldown: Duration,
 }
 
@@ -368,16 +382,20 @@ impl Default for WallRunning {
 #[reflect(Component)]
 #[require(DashState)]
 pub struct Dashing {
-    /// Distance covered by a dash that isn't blocked or cancelled.
+    /// Meters covered by a dash that isn't blocked or cancelled.
     pub distance: f32,
+    /// How long a dash takes. Together with `distance` this sets the speed, see [`Self::speed`].
     pub duration: Duration,
+    /// Time from the start of one dash until the next can begin.
     pub cooldown: Duration,
+    /// How early a dash press counts, if it can't happen yet (e.g. still on cooldown).
     pub input_buffer: Duration,
-    /// Dashes allowed before touching the ground again.
+    /// Dashes allowed in the air before landing. Ground dashes are unlimited, only gated by `cooldown`.
     pub max_air_dashes: u8,
 }
 
 impl Dashing {
+    /// Dash speed in m/s.
     pub fn speed(&self) -> f32 {
         self.distance / self.duration.as_secs_f32().max(f32::EPSILON)
     }
