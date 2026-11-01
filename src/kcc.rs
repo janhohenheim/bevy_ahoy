@@ -64,7 +64,7 @@ fn setup_collider(
         };
         cfg.filter.excluded_entities.add(collider_entity);
 
-        let standing_aabb = collider.aabb(default(), Rotation::default());
+        let standing_aabb = collider.aabb(default(), Rotation::default(), 0.0);
         let standing_height = standing_aabb.max.y - standing_aabb.min.y;
 
         derived.standing_collider = collider.clone();

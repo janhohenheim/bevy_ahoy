@@ -10,6 +10,7 @@ pub mod prelude {
         bevy_enhanced_input::prelude::*,
         bevy_math::prelude::*,
         bevy_reflect::prelude::*,
+        bevy_shape::prelude::*,
         bevy_time::prelude::*,
         bevy_transform::prelude::*,
         bevy_utils::prelude::*,
@@ -24,28 +25,7 @@ pub mod prelude {
         },
         water::{Water, WaterLevel, WaterState},
     };
-
-    #[cfg(feature = "pickup")]
-    pub use crate::{
-        PickupConfig,
-        input::{DropObject, PullObject, ThrowObject},
-        pickup,
-    };
 }
-
-#[cfg(feature = "pickup")]
-pub use crate::pickup_glue::AhoyPickupGluePlugin;
-#[cfg(feature = "pickup")]
-use avian_pickup::AvianPickupPlugin;
-#[cfg(feature = "pickup")]
-pub use avian_pickup::{
-    self as pickup,
-    prelude::{
-        AvianPickupActor as PickupConfig, AvianPickupActorHoldConfig as PickupHoldConfig,
-        AvianPickupActorPullConfig as PickupPullConfig,
-        AvianPickupActorThrowConfig as PickupThrowConfig,
-    },
-};
 
 pub use crate::{
     camera::AhoyCameraPlugin, dynamics::AhoyDynamicPlugin,
@@ -64,15 +44,11 @@ mod dynamics;
 mod fixed_update_utils;
 pub mod input;
 mod kcc;
-#[cfg(feature = "pickup")]
-mod pickup_glue;
 mod water;
 
 /// Plugin group for Ahoy's internal plugins.
 ///
 /// It requires you to add [`PhysicsPlugins`] and [`EnhancedInputPlugin`] to work properly.
-///
-/// Also adds [`AvianPickupPlugin`] if `pickup` feature is enabled.
 pub struct AhoyPlugins {
     schedule: Interned<dyn ScheduleLabel>,
 }
@@ -96,7 +72,7 @@ impl Default for AhoyPlugins {
 
 impl PluginGroup for AhoyPlugins {
     fn build(self) -> PluginGroupBuilder {
-        let plugin = PluginGroupBuilder::start::<Self>()
+        PluginGroupBuilder::start::<Self>()
             .add(AhoySchedulePlugin {
                 schedule: self.schedule,
             })
@@ -109,14 +85,7 @@ impl PluginGroup for AhoyPlugins {
             .add(AhoyFixedUpdateUtilsPlugin)
             .add(AhoyDynamicPlugin {
                 schedule: self.schedule,
-            });
-
-        #[cfg(feature = "pickup")]
-        let plugin = plugin
-            .add(AvianPickupPlugin::default())
-            .add(AhoyPickupGluePlugin);
-
-        plugin
+            })
     }
 }
 
@@ -160,7 +129,7 @@ pub enum AhoySystems {
     WaterState,
     CustomPositionIntegration,
     Transform,
-    SpeculativeMargin::ZERO,
+    SpeculativeCcd::ZERO,
     CollidingEntities,
 )]
 pub struct CharacterController {

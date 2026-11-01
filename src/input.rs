@@ -1,5 +1,3 @@
-#[cfg(feature = "pickup")]
-use avian_pickup::input::{AvianPickupAction, AvianPickupInput};
 use bevy_ecs::entity::MapEntities;
 use bevy_time::Stopwatch;
 
@@ -29,11 +27,6 @@ impl Plugin for AhoyInputPlugin {
                     .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             )
             .add_systems(PreUpdate, tick_timers.in_set(EnhancedInputSystems::Update));
-
-        #[cfg(feature = "pickup")]
-        app.add_observer(apply_drop)
-            .add_observer(apply_pull)
-            .add_observer(apply_throw);
     }
 }
 
@@ -80,21 +73,6 @@ pub struct RotateCamera;
 #[derive(Debug, InputAction)]
 #[action_output(f32)]
 pub struct YankCamera;
-
-#[cfg(feature = "pickup")]
-#[derive(Debug, InputAction)]
-#[action_output(bool)]
-pub struct PullObject;
-
-#[cfg(feature = "pickup")]
-#[derive(Debug, InputAction)]
-#[action_output(bool)]
-pub struct DropObject;
-
-#[cfg(feature = "pickup")]
-#[derive(Debug, InputAction)]
-#[action_output(bool)]
-pub struct ThrowObject;
 
 /// Input accumulated since the last fixed update loop. Is cleared after every fixed update loop.
 #[derive(Component, Clone, Reflect, PartialEq, Default, Debug, MapEntities)]
@@ -183,57 +161,6 @@ fn apply_climbdown(
     if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(climbdown.context) {
         accumulated_inputs.climbdown = Some(Stopwatch::new());
     }
-}
-
-#[cfg(feature = "pickup")]
-fn apply_pull(
-    crouch: On<Fire<PullObject>>,
-    mut avian_pickup_input_writer: MessageWriter<AvianPickupInput>,
-    cams: Query<&CharacterControllerCamera>,
-) {
-    let actor = if let Ok(camera) = cams.get(crouch.context) {
-        camera.get()
-    } else {
-        crouch.context
-    };
-    avian_pickup_input_writer.write(AvianPickupInput {
-        action: AvianPickupAction::Pull,
-        actor,
-    });
-}
-
-#[cfg(feature = "pickup")]
-fn apply_drop(
-    crouch: On<Fire<DropObject>>,
-    mut avian_pickup_input_writer: MessageWriter<AvianPickupInput>,
-    cams: Query<&CharacterControllerCamera>,
-) {
-    let actor = if let Ok(camera) = cams.get(crouch.context) {
-        camera.get()
-    } else {
-        crouch.context
-    };
-    avian_pickup_input_writer.write(AvianPickupInput {
-        action: AvianPickupAction::Drop,
-        actor,
-    });
-}
-
-#[cfg(feature = "pickup")]
-fn apply_throw(
-    crouch: On<Fire<ThrowObject>>,
-    mut avian_pickup_input_writer: MessageWriter<AvianPickupInput>,
-    cams: Query<&CharacterControllerCamera>,
-) {
-    let actor = if let Ok(camera) = cams.get(crouch.context) {
-        camera.get()
-    } else {
-        crouch.context
-    };
-    avian_pickup_input_writer.write(AvianPickupInput {
-        action: AvianPickupAction::Throw,
-        actor,
-    });
 }
 
 fn clear_accumulated_input(mut accumulated_inputs: Query<&mut AccumulatedInput>) {

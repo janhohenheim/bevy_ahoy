@@ -1,4 +1,0 @@
-[material]
-base_color_texture = "glasswindow001a.png"
-
-alpha_mode = { Mask = 0.5 }

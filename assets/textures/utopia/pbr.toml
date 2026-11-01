@@ -1,4 +1,0 @@
-[material]
-base_color_texture = "${name}.png"
-metallic_roughness_texture = "${name}_rough.png"
-normal_map_texture = "${name}_normal.png"
