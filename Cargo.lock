@@ -473,6 +473,7 @@ dependencies = [
  "bevy_math",
  "bevy_mod_mipmap_generator",
  "bevy_reflect",
+ "bevy_third_person_camera",
  "bevy_time",
  "bevy_transform",
  "bevy_trenchbroom",
@@ -1794,6 +1795,15 @@ dependencies = [
  "thiserror 2.0.19",
  "tracing",
  "wgpu-types",
+]
+
+[[package]]
+name = "bevy_third_person_camera"
+version = "0.4.0"
+source = "git+https://github.com/olekspickle/bevy_third_person_camera?rev=9640960#96409609dd2ebb1ce94c257ab3a33f2221dd3c6a"
+dependencies = [
+ "avian3d",
+ "bevy",
 ]
 
 [[package]]

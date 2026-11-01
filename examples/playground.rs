@@ -108,6 +108,9 @@ fn spawn_player(
             CollisionLayers::new(CollisionLayer::Player, LayerMask::ALL),
             PlayerInput,
             CharacterController::default(),
+            Dashing::default(),
+            AirJumping::default(),
+            WallRunning::default(),
             RigidBody::Kinematic,
             Collider::cylinder(0.7, 1.8),
             Mass(90.0),
@@ -194,6 +197,11 @@ impl PlayerInput {
                 (
                     Action::<Crouch>::new(),
                     bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
+                ),
+                (
+                    Action::<Dash>::new(),
+                    Press::default(),
+                    bindings![KeyCode::AltLeft, GamepadButton::East],
                 ),
                 (
                     Action::<SwimUp>::new(),

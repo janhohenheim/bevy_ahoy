@@ -16,11 +16,12 @@ pub mod prelude {
     };
 
     pub use crate::{
-        AhoyPlugins, AhoySystems, CharacterController, CharacterControllerState,
+        AhoyPlugins, AhoySystems, AirJumping, CharacterController, CharacterControllerState,
+        Dashing, GravityScaling, WallRunning,
         camera::{CharacterControllerCamera, CharacterControllerCameraOf},
         input::{
-            Climbdown, Crane, Crouch, GlobalMovement, Jump, Mantle, Movement, RotateCamera, SwimUp,
-            Tac, YankCamera,
+            Climbdown, Crane, Crouch, Dash, GlobalMovement, Jump, Mantle, Movement, RotateCamera,
+            SwimUp, Tac, YankCamera,
         },
         water::{Water, WaterLevel, WaterState},
     };
@@ -178,6 +179,8 @@ pub struct CharacterController {
     pub air_acceleration_hz: f32,
     pub water_acceleration_hz: f32,
     pub water_slowdown: f32,
+    /// Downward acceleration in m/s². Jump heights stay the same when this changes, only airtime does;
+    /// [`GravityScaling`] scales do change them.
     pub gravity: f32,
     pub water_gravity: f32,
     pub step_size: f32,
@@ -187,6 +190,8 @@ pub struct CharacterController {
     pub air_speed: f32,
     pub move_and_slide: MoveAndSlideConfig,
     pub max_speed: f32,
+    /// Peak height of a ground jump in meters, from where the feet left the ground.
+    /// Exact only without [`GravityScaling`]; e.g. a low `apex_scale` overshoots it.
     pub jump_height: f32,
     pub tac_power: f32,
     pub tac_jump_factor: f32,
@@ -276,6 +281,134 @@ impl Default for CharacterController {
             max_ledge_grab_distance: 0.3,
             climb_reverse_sin: 40.0_f32.to_radians().sin(),
             climb_sensitivity: 2.5,
+        }
+    }
+}
+
+/// Add alongside [`CharacterController`] to allow jumping in the air.
+#[derive(Component, Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Component)]
+#[require(AirJumpState)]
+pub struct AirJumping {
+    /// Jumps allowed before landing. Touching a wall while [`WallRunning`] refills them.
+    pub count: u8,
+    /// Height gained in meters, from where the jump happens; lower than [`CharacterController::jump_height`]
+    /// makes air jumps feel distinct. Exact only without [`GravityScaling`].
+    pub height: f32,
+}
+
+impl Default for AirJumping {
+    fn default() -> Self {
+        Self {
+            count: 1,
+            height: 1.2,
+        }
+    }
+}
+
+/// Add alongside [`CharacterController`] to scale gravity over the airborne arc, e.g. to hang at the apex.
+/// Scales also change jump height, since jump speed is derived from unscaled gravity.
+#[derive(Component, Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Component)]
+pub struct GravityScaling {
+    /// Gravity multiplier while going up. Above 1 gives lower, snappier jumps; below 1 higher, floatier ones.
+    pub rise_scale: f32,
+    /// Gravity multiplier near the peak. Below 1 hangs in the air there; 1 disables the hang.
+    pub apex_scale: f32,
+    /// Vertical speed in m/s under which you count as at the peak. Wider means a longer hang.
+    pub apex_threshold: f32,
+    /// Gravity multiplier while falling. Above 1 drops faster; it doesn't change peak height.
+    pub fall_scale: f32,
+}
+
+impl Default for GravityScaling {
+    fn default() -> Self {
+        Self {
+            rise_scale: 1.0,
+            apex_scale: 0.4,
+            apex_threshold: 3.0,
+            fall_scale: 1.0,
+        }
+    }
+}
+
+/// Add alongside [`CharacterController`] to allow running along walls.
+#[derive(Component, Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Component)]
+#[require(WallRunState)]
+pub struct WallRunning {
+    /// Horizontal speed along the wall in m/s needed to start and keep running.
+    /// Above [`CharacterController::speed`], only extra momentum (dashes, bhops) gets you on walls.
+    pub min_speed: f32,
+    /// Longest a single run lasts before you drop off.
+    pub max_duration: Duration,
+    /// Multiplier on [`CharacterController::gravity`] while running.
+    /// `0.0` runs perfectly level, `1.0` falls as fast as normal.
+    pub gravity_scale: f32,
+    /// How close in meters a wall must be to start or keep running on it.
+    pub detection_distance: f32,
+    /// Horizontal speed in m/s away from the wall when jumping off.
+    pub jump_push: f32,
+    /// Height gained in meters when jumping off. Exact only without [`GravityScaling`].
+    pub jump_height: f32,
+    /// Time after leaving a wall (or tic-tacing) before another run can start.
+    pub reattach_cooldown: Duration,
+}
+
+impl Default for WallRunning {
+    fn default() -> Self {
+        Self {
+            min_speed: 6.0,
+            max_duration: Duration::from_millis(1500),
+            gravity_scale: 0.15,
+            detection_distance: 0.3,
+            jump_push: 8.0,
+            jump_height: 1.5,
+            reattach_cooldown: Duration::from_millis(300),
+        }
+    }
+}
+
+/// Add alongside [`CharacterController`] to allow dashing.
+#[derive(Component, Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Component)]
+#[require(DashState)]
+pub struct Dashing {
+    /// Meters covered by a dash that isn't blocked or cancelled.
+    pub distance: f32,
+    /// How long a dash takes. Together with `distance` this sets the speed, see [`Self::speed`].
+    pub duration: Duration,
+    /// Time from the start of one dash until the next can begin.
+    pub cooldown: Duration,
+    /// How early a dash press counts, if it can't happen yet (e.g. still on cooldown).
+    pub input_buffer: Duration,
+    /// Dashes allowed in the air before landing. Ground dashes are unlimited, only gated by `cooldown`.
+    pub max_air_dashes: u8,
+}
+
+impl Dashing {
+    /// Dash speed in m/s.
+    pub fn speed(&self) -> f32 {
+        self.distance / self.duration.as_secs_f32().max(f32::EPSILON)
+    }
+}
+
+impl Default for Dashing {
+    fn default() -> Self {
+        Self {
+            distance: 8.0,
+            duration: Duration::from_millis(200),
+            cooldown: Duration::from_millis(600),
+            input_buffer: Duration::from_millis(150),
+            max_air_dashes: 1,
         }
     }
 }
@@ -373,6 +506,74 @@ impl Default for CharacterControllerState {
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct MantleState {
     pub height_left: f32,
+}
+
+#[derive(Component, Clone, Reflect, PartialEq, Debug, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Component)]
+pub struct AirJumpState {
+    pub used: u8,
+}
+
+#[derive(Component, Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Component)]
+pub struct DashState {
+    /// [`None`] if a dash is not in progress.
+    pub progress: Option<DashProgress>,
+    pub last: Stopwatch,
+    pub air_dashes_used: u8,
+}
+
+impl Default for DashState {
+    fn default() -> Self {
+        Self {
+            progress: None,
+            last: max_stopwatch(),
+            air_dashes_used: 0,
+        }
+    }
+}
+
+#[derive(Component, Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Component)]
+pub struct WallRunState {
+    /// [`None`] if a wall run is not in progress.
+    pub progress: Option<WallRunProgress>,
+    /// Time since the last wall run ended.
+    pub last: Stopwatch,
+    /// Set when a run times out, so we don't immediately reattach. Cleared on landing or wall jump.
+    pub exhausted: bool,
+}
+
+impl Default for WallRunState {
+    fn default() -> Self {
+        Self {
+            progress: None,
+            last: max_stopwatch(),
+            exhausted: false,
+        }
+    }
+}
+
+/// The state of a wall run in progress.
+#[derive(Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+pub struct WallRunProgress {
+    pub normal: Dir3,
+    pub elapsed: Duration,
+}
+
+/// The state of a dash in progress.
+#[derive(Clone, Reflect, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+pub struct DashProgress {
+    pub direction: Dir3,
+    pub time_left: Duration,
 }
 
 fn max_stopwatch() -> Stopwatch {

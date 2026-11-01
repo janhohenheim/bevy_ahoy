@@ -42,6 +42,9 @@ pub struct CharacterControllerCameraOf {
     pub teleport_detection_distance: f32,
     /// The yank speed (rotation rate) in **radians per second**.
     pub yank_speed: f32,
+    /// Horizontal camera offset in meters relative to where it looks: `x` is right, `y` is forward.
+    /// E.g. push it forward to see past a visible character model's head.
+    pub horizontal_offset: Vec2,
 }
 
 impl CharacterControllerCameraOf {
@@ -52,6 +55,7 @@ impl CharacterControllerCameraOf {
             step_smooth_time: Duration::from_millis(200),
             teleport_detection_distance: 10.0,
             yank_speed: 210.0_f32.to_radians(),
+            horizontal_offset: Vec2::ZERO,
         }
     }
 }
@@ -113,8 +117,11 @@ pub(crate) fn sync_camera_transform(
             } else {
                 cfg.standing_view_height
             };
+            let (yaw, _, _) = camera_transform.rotation.to_euler(EulerRot::YXZ);
+            let offset = Quat::from_rotation_y(yaw)
+                * Vec3::new(camera.horizontal_offset.x, 0.0, -camera.horizontal_offset.y);
             let new_translation =
-                kcc_transform.translation + Vec3::Y * (-height / 2.0 + view_height);
+                kcc_transform.translation + offset + Vec3::Y * (-height / 2.0 + view_height);
             camera_transform.translation.x = new_translation.x;
             camera_transform.translation.z = new_translation.z;
             if !camera.enable_smoothing {

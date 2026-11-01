@@ -22,6 +22,7 @@ impl Plugin for AhoyInputPlugin {
             .add_observer(apply_crane)
             .add_observer(apply_mantle)
             .add_observer(apply_climbdown)
+            .add_observer(apply_dash)
             .add_systems(
                 RunFixedMainLoop,
                 clear_accumulated_input
@@ -74,6 +75,10 @@ pub struct Climbdown;
 pub struct Crouch;
 
 #[derive(Debug, InputAction)]
+#[action_output(bool)]
+pub struct Dash;
+
+#[derive(Debug, InputAction)]
 #[action_output(Vec2)]
 pub struct RotateCamera;
 
@@ -115,6 +120,8 @@ pub struct AccumulatedInput {
     pub craned: Option<Stopwatch>,
     pub mantled: Option<Stopwatch>,
     pub climbdown: Option<Stopwatch>,
+    // Time since the last dash input. Will be `None` once the dash was processed.
+    pub dashed: Option<Stopwatch>,
 }
 
 fn apply_movement(
@@ -185,6 +192,12 @@ fn apply_climbdown(
     }
 }
 
+fn apply_dash(dash: On<Fire<Dash>>, mut accumulated_inputs: Query<&mut AccumulatedInput>) {
+    if let Ok(mut accumulated_inputs) = accumulated_inputs.get_mut(dash.context) {
+        accumulated_inputs.dashed = Some(Stopwatch::new());
+    }
+}
+
 #[cfg(feature = "pickup")]
 fn apply_pull(
     crouch: On<Fire<PullObject>>,
@@ -247,6 +260,7 @@ fn clear_accumulated_input(mut accumulated_inputs: Query<&mut AccumulatedInput>)
             mantled: accumulated_input.mantled.clone(),
             crouched: default(),
             climbdown: accumulated_input.climbdown.clone(),
+            dashed: accumulated_input.dashed.clone(),
         }
     }
 }
@@ -267,6 +281,9 @@ fn tick_timers(mut inputs: Query<&mut AccumulatedInput>, time: Res<Time>) {
         }
         if let Some(climbdown) = input.climbdown.as_mut() {
             climbdown.tick(time.delta());
+        }
+        if let Some(dashed) = input.dashed.as_mut() {
+            dashed.tick(time.delta());
         }
     }
 }
