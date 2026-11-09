@@ -16,11 +16,23 @@ pub mod prelude {
     };
 
     pub use crate::{
-        AhoyPlugins, AhoySystems, CharacterController, CharacterControllerState,
+        AhoyPlugins,
+        AhoySystems,
+        CharacterController,
+        CharacterControllerState,
         camera::{CharacterControllerCamera, CharacterControllerCameraOf},
         input::{
-            Climbdown, Crane, Crouch, GlobalMovement, Jump, Mantle, Movement, RotateCamera, SwimUp,
-            Tac, YankCamera,
+            Climbdown,
+            Crane,
+            Crouch,
+            GlobalMovement,
+            Jump,
+            Mantle,
+            Movement,
+            RotateCamera,
+            SwimUp,
+            Tac,
+            YankCamera,
         },
         water::{Water, WaterLevel, WaterState},
     };
@@ -41,19 +53,24 @@ use avian_pickup::AvianPickupPlugin;
 pub use avian_pickup::{
     self as pickup,
     prelude::{
-        AvianPickupActor as PickupConfig, AvianPickupActorHoldConfig as PickupHoldConfig,
+        AvianPickupActor as PickupConfig,
+        AvianPickupActorHoldConfig as PickupHoldConfig,
         AvianPickupActorPullConfig as PickupPullConfig,
         AvianPickupActorThrowConfig as PickupThrowConfig,
     },
 };
 
 pub use crate::{
-    camera::AhoyCameraPlugin, dynamics::AhoyDynamicPlugin,
-    fixed_update_utils::AhoyFixedUpdateUtilsPlugin, input::AhoyInputPlugin, kcc::AhoyKccPlugin,
+    camera::AhoyCameraPlugin,
+    dynamics::AhoyDynamicPlugin,
+    fixed_update_utils::AhoyFixedUpdateUtilsPlugin,
+    input::AhoyInputPlugin,
+    kcc::AhoyKccPlugin,
     water::AhoyWaterPlugin,
 };
 use crate::{input::AccumulatedInput, prelude::*};
 use avian3d::character_controller::move_and_slide::MoveHitData;
+use bevy::prelude::Cuboid;
 use bevy_app::PluginGroupBuilder;
 use bevy_ecs::{entity::MapEntities, intern::Interned, schedule::ScheduleLabel};
 use bevy_time::Stopwatch;
@@ -160,7 +177,7 @@ pub enum AhoySystems {
     WaterState,
     CustomPositionIntegration,
     Transform,
-    SpeculativeMargin::ZERO,
+    SpeculativeCcd::ZERO,
     CollidingEntities,
 )]
 pub struct CharacterController {

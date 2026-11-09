@@ -16,8 +16,14 @@ use std::sync::Arc;
 use tracing::{error, warn};
 
 use crate::{
-    CharacterControllerDerivedProps, CharacterControllerOutput, CharacterControllerState,
-    CharacterLook, MantleOutput, MantleState, input::AccumulatedInput, prelude::*,
+    CharacterControllerDerivedProps,
+    CharacterControllerOutput,
+    CharacterControllerState,
+    CharacterLook,
+    MantleOutput,
+    MantleState,
+    input::AccumulatedInput,
+    prelude::*,
 };
 
 pub struct AhoyKccPlugin {
@@ -64,7 +70,8 @@ fn setup_collider(
         };
         cfg.filter.excluded_entities.add(collider_entity);
 
-        let standing_aabb = collider.aabb(default(), Rotation::default());
+        let standing_aabb = collider.aabb(default(), Rotation::default(), 0.0); // <= Jan, review this! the
+	    // margin is new from the latest avian update
         let standing_height = standing_aabb.max.y - standing_aabb.min.y;
 
         derived.standing_collider = collider.clone();
@@ -1166,7 +1173,7 @@ fn closest_wall_normal(
         transform.rotation,
         dist + ctx.cfg.move_and_slide.skin_width,
         &ctx.cfg.filter,
-        |contact_point, normal| {
+        |_entity, contact_point, normal| {
             if normal.y.abs() < ctx.cfg.min_walk_cos
                 && !closest_wall.is_some_and(|(p, _)| p.penetration < contact_point.penetration)
             {
