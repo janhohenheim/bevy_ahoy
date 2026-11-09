@@ -89,7 +89,7 @@ struct Player;
 struct SpawnPlayer;
 
 fn spawn_player(
-    insert: On<Add, SpawnPlayer>,
+    insert: On<Add<SpawnPlayer>>,
     players: Query<Entity, With<Player>>,
     spawner: Query<&Transform>,
     camera: Single<Entity, With<Camera3d>>,
@@ -140,92 +140,107 @@ pub(crate) struct PlayerInput;
 
 impl PlayerInput {
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        world
-            .commands()
-            .entity(ctx.entity)
-            .insert(actions!(PlayerInput[
-                (
-                    Action::<Movement>::new(),
-                    DeadZone::default(),
-                    Bindings::spawn((
-                        Cardinal::wasd_keys(),
-                        Axial::left_stick()
-                    ))
-                ),
-                (
-                    Action::<Jump>::new(),
-                    Press::default(),
-                    bindings![
-                        KeyCode::Space,
-                        GamepadButton::South,
-                        Binding::mouse_wheel(),
-                    ],
-                ),
-                (
-                    Action::<Tac>::new(),
-                    Press::default(),
-                    bindings![
-                        KeyCode::Space,
-                        GamepadButton::South,
-                        Binding::mouse_wheel(),
-                    ],
-                ),
-                (
-                    Action::<Crane>::new(),
-                    Press::default(),
-                    bindings![
-                        KeyCode::Space,
-                        GamepadButton::South,
-                        Binding::mouse_wheel(),
-                    ],
-                ),
-                (
-                    Action::<Mantle>::new(),
-                    Hold::new(0.2),
-                    bindings![
-                        KeyCode::Space,
-                        GamepadButton::South,
-                    ],
-                ),
-                (
-                    Action::<Climbdown>::new(),
-                    bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
-                ),
-                (
-                    Action::<Crouch>::new(),
-                    bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
-                ),
-                (
-                    Action::<SwimUp>::new(),
-                    bindings![KeyCode::Space, GamepadButton::South],
-                ),
-                (
-                    Action::<PullObject>::new(),
-                    ActionSettings { consume_input: true, ..default() },
-                    Press::default(),
-                    bindings![MouseButton::Right],
-                ),
-                (
-                    Action::<DropObject>::new(),
-                    ActionSettings { consume_input: true, ..default() },
-                    Press::default(),
-                    bindings![MouseButton::Right],
-                ),
-                (
-                    Action::<ThrowObject>::new(),
-                    ActionSettings { consume_input: true, ..default() },
-                    Press::default(),
-                    bindings![MouseButton::Left],
-                ),
-                (
-                    Action::<RotateCamera>::new(),
-
-                    Bindings::spawn((
-                        Spawn((Binding::mouse_motion(), Scale::splat(0.07))),
-                        Axial::right_stick().with((Scale::splat(4.0),  DeadZone::default())),
-                    ))
-                ),
-            ]));
+        world.commands().entity(ctx.entity).apply_scene(bsn! {
+            Action<PlayerInput> [
+                Action<Movement>::new()
+                DeadZone
+                Bindings [
+                    {preset::cardinal::wasd_keys()}
+                    --
+                    {preset::axial::left_stick()}
+                ]
+                --
+                Action<Jump>::new()
+                Press
+                Bindings [
+                    Binding(KeyCode::Space)
+                    --
+                    Binding(GamepadButton::South)
+                    --
+                    Binding::mouse_wheel()
+                ]
+                --
+                Action<Tac>::new()
+                Press
+                Bindings [
+                    Binding(KeyCode::Space)
+                    --
+                    Binding(GamepadButton::South)
+                    --
+                    Binding::mouse_wheel()
+                ]
+                --
+                Action<Crane>::new()
+                Press
+                Bindings [
+                    Binding(KeyCode::Space)
+                    --
+                    Binding(GamepadButton::South)
+                    --
+                    Binding::mouse_wheel()
+                ]
+                --
+                Action<Mantle>::new()
+                Hold::new(0.2)
+                Bindings [
+                    Binding(KeyCode::Space)
+                    --
+                    Binding(GamepadButton::South)
+                ]
+                --
+                Action<Climbdown>::new()
+                Bindings [
+                    Binding(KeyCode::ControlLeft)
+                    --
+                    Binding(GamepadButton::LeftTrigger2)
+                ]
+                --
+                Action<Crouch>::new()
+                Bindings [
+                    Binding(KeyCode::ControlLeft)
+                    --
+                    Binding(GamepadButton::LeftTrigger2)
+                ]
+                --
+                Action<SwimUp>::new()
+                Bindings [
+                    Binding(KeyCode::Space)
+                    --
+                    Binding(GamepadButton::South)
+                ]
+                --
+                Action<PullObject>::new()
+                ActionSettings { consume_input: true }
+                Bindings [
+                    Binding(MouseButton::Right)
+                ]
+                --
+                Action<DropObject>::new()
+                ActionSettings { consume_input: true }
+                Press
+                Bindings [
+                    Binding(MouseButton::Right)
+                ]
+                --
+                Action<ThrowObject>
+                ActionSettings { consume_input: true }
+                Press
+                Bindings [
+                    Binding(MouseButton::Left)
+                ]
+                --
+                Action<RotateCamera>::new()
+                Bindings [
+                    Binding::mouse_motion()
+                    ~Scale::splat(0.07)
+                    --
+                    {preset::axial::new(
+                        (GamepadAxis::RightStickX, Scale::splat(4.0), DeadZone::default()),
+                        (GamepadAxis::RightStickY, Scale::splat(4.0), DeadZone::default())
+                    )}
+                ]
+            ]
+        });
     }
 }
 
@@ -424,7 +439,7 @@ impl Npc {
         };
         let mesh = world
             .resource_mut::<Assets<Mesh>>()
-            .add(bevy::math::primitives::Cylinder::new(
+            .add(bevy::shape::Cylinder::new(
                 collider.as_cylinder().unwrap().radius,
                 collider.as_cylinder().unwrap().half_height * 2.0,
             ));
@@ -435,26 +450,25 @@ impl Npc {
             .commands()
             .entity(ctx.entity)
             .insert((Mesh3d(mesh), MeshMaterial3d(material)));
-        world.commands().entity(ctx.entity).insert(actions!(Npc[
-            (
-                Action::<GlobalMovement>::new(),
+        world.commands().entity(ctx.entity).apply_scene(bsn! {
+            Actions<Npc> [
+                Action<GlobalMovement>::new()
                 ActionMock {
                     state: TriggerState::Fired,
-                    value: Vec3::ZERO.into(),
-                    span: Duration::from_secs(2).into(),
+                    value: Vec3::ZERO,
+                    span: Duration::from_secs(2),
                     enabled: false
                 }
-            ),
-            (
-                Action::<Jump>::new(),
+                --
+                Action<Jump>::new()
                 ActionMock {
                     state: TriggerState::Fired,
-                    value: true.into(),
-                    span: Duration::from_secs(2).into(),
+                    value: {true.into()},
+                    span: Duration::from_secs(2),
                     enabled: false
                 }
-            ),
-        ]));
+            ]
+        });
     }
 }
 
