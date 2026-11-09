@@ -32,48 +32,56 @@ fn main() -> AppExit {
         .run()
 }
 
-fn setup(mut commands: Commands, assets: Res<AssetServer>) {
+fn setup(mut commands: Commands) {
     // Spawn the player
-    let player = commands
-        .spawn((
+	let player = commands.spawn_scene(
+		bsn! {
             // Add the character controller configuration. We'll use the default settings for now.
-            CharacterController::default(),
-            // The KCC currently behaves best when using a cylinder
-            Collider::cylinder(0.7, 1.8),
-            Transform::from_xyz(0.0, 20.0, 0.0),
-            StableGround::default(),
-            // Configure inputs. The actions `Movement`, `Jump`, etc. are provided by Ahoy, you just need to bind them.
-            PlayerInput,
-            actions!(PlayerInput[
-                (
-                    Action::<Movement>::new(),
-                    // Normalize the input vector
-                    DeadZone::default(),
-                    Bindings::spawn((
-                        Cardinal::wasd_keys(),
-                        Axial::left_stick()
-                    ))
-                ),
-                (
-                    Action::<Jump>::new(),
-                    bindings![KeyCode::Space,  GamepadButton::South],
-                ),
-                (
-                    Action::<Crouch>::new(),
-                    bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
-                ),
-                (
-                    Action::<RotateCamera>::new(),
-                    Bindings::spawn((
-                        // tweak mouse and right stick sensitivity
-                        // in Scale::splat values
-                        Spawn((Binding::mouse_motion(), Scale::splat(0.07))),
-                        Axial::right_stick().with((Scale::splat(4.0), DeadZone::default())),
-                    ))
-                ),
-            ]),
-        ))
-        .id();
+			CharacterController
+			// The KCC currently behaves best when using a cylinder
+			Collider::cylinder(0.7, 1.8)
+			Transform::from_xyz(0.0, 20.0, 0.0)
+			StableGround
+			PlayerInput
+			Actions<PlayerInput> [
+				Action<Movement>::new()
+				// Normalize the input vector
+				DeadZone
+				Bindings [
+					{preset::cardinal::wasd_keys()}
+					--
+					{preset::axial::left_stick()}
+				]
+				--
+				Action<Jump>::new()
+				Bindings [
+					Binding(KeyCode::Space)
+					--
+					Binding(GamepadButton::South)
+				]
+				--
+				Action<Crouch>::new()
+				Bindings [
+					Binding(KeyCode::ControlLeft)
+					--
+					Binding(GamepadButton::LeftTrigger2)
+				]
+				--
+				Action<RotateCamera>::new()
+				Bindings [
+                    // tweak mouse and right stick sensitivity
+                    // in Scale::splat values
+					Binding::mouse_motion()
+					~Scale::splat(0.07)
+					--
+					{preset::axial::new(
+						(GamepadAxis::RightStickY, Scale::splat(4.0), DeadZone::default()),
+						(GamepadAxis::RightStickX, Scale::splat(4.0), DeadZone::default())
+					)}
+				]
+			]
+		}
+	).id();
 
     // Spawn the player camera
     commands.spawn((
@@ -82,26 +90,25 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         CharacterControllerCameraOf::new(player),
     ));
 
-    // Spawn a directional light
-    commands.spawn((
-        Transform::from_xyz(0.0, 1.0, 0.0).looking_at(vec3(1.0, -2.0, -2.0), Vec3::Y),
-        DirectionalLight {
-            shadow_maps_enabled: true,
-            ..default()
-        },
-    ));
+	// Spawn a directional light
+	commands.spawn_scene(bsn! {
+		Transform::from_xyz(0.0, 1.0, 0.0).looking_at(vec3(1.0, -2.0, -2.0), Vec3::Y)
+		DirectionalLight {
+			shadow_maps_enabled: true
+		}
+	});
 
     // Spawn the level. This can be done in whatever way you prefer: spawn individual colliders, load a scene, use Skein, use bevy_trenchbroom, etc.
     // Ahoy will deal with it all.
     // Here we load a glTF file and create a convex hull collider for each mesh.
-    commands.spawn((
-        WorldAssetRoot(assets.load("maps/playground.glb#Scene0")),
-        RigidBody::Static,
-        ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
-    ));
+	commands.spawn_scene(bsn! {
+		WorldAssetRoot("maps/playground.glb#Scene0")
+		RigidBody::Static
+		ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh)
+	});
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone)]
 pub(crate) struct PlayerInput;
 
 fn capture_cursor(mut cursor: Single<&mut CursorOptions>) {

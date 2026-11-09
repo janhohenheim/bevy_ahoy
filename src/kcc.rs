@@ -16,8 +16,14 @@ use std::sync::Arc;
 use tracing::{error, warn};
 
 use crate::{
-    CharacterControllerDerivedProps, CharacterControllerOutput, CharacterControllerState,
-    CharacterLook, MantleOutput, MantleState, input::AccumulatedInput, prelude::*,
+    CharacterControllerDerivedProps,
+    CharacterControllerOutput,
+    CharacterControllerState,
+    CharacterLook,
+    MantleOutput,
+    MantleState,
+    input::AccumulatedInput,
+    prelude::*,
 };
 
 pub struct AhoyKccPlugin {
@@ -64,7 +70,8 @@ fn setup_collider(
         };
         cfg.filter.excluded_entities.add(collider_entity);
 
-        let standing_aabb = collider.aabb(default(), Rotation::default());
+        let standing_aabb = collider.aabb(default(), Rotation::default(), 0.0); // <= Jan, review this! the
+	    // margin is new from the latest avian update
         let standing_height = standing_aabb.max.y - standing_aabb.min.y;
 
         derived.standing_collider = collider.clone();

@@ -13,7 +13,7 @@ impl Plugin for AhoyPickupGluePlugin {
 }
 
 fn filter_out_picked_up_prop(
-    insert: On<Insert, Holding>,
+    insert: On<Insert<Holding>>,
     pickup_actor: Query<(&Holding, &CharacterControllerCameraOf), Changed<AvianPickupActorState>>,
     mut kcc: Query<&mut CharacterController>,
     prop: Query<&RigidBodyColliders>,
@@ -31,7 +31,7 @@ fn filter_out_picked_up_prop(
 }
 
 fn filter_in_unpicked_prop(
-    discard: On<Discard, Holding>,
+    discard: On<Discard<Holding>>,
     pickup_actor: Query<(&Holding, &CharacterControllerCameraOf), Changed<AvianPickupActorState>>,
     mut kcc: Query<&mut CharacterController>,
     prop: Query<&RigidBodyColliders>,

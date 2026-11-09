@@ -17,31 +17,32 @@ serialize = ["dep:serde", "avian3d/serialize", "bevy_math/serialize", "avian_pic
 pickup = ["dep:avian_pickup"]
 
 [dependencies]
-avian3d = { version = "0.7", default-features = false, features = ["parry-f32", "3d", "f32"] }
-bevy_ecs = { version = "0.19", default-features = false }
-bevy_app = { version = "0.19", default-features = false }
-bevy_derive = { version = "0.19", default-features = false }
-bevy_utils = { version = "0.19", default-features = false }
-bevy_math = { version = "0.19", default-features = false }
-bevy_reflect = { version = "0.19", default-features = false }
-bevy_transform = { version = "0.19", default-features = false }
-bevy_time = { version = "0.19", default-features = false }
-bevy_enhanced_input = { version = "0.26", default-features = false }
+avian3d = { version = "0.8", default-features = false, features = ["parry-f32", "3d"] }
+bevy_ecs = { version = "0.20", default-features = false }
+bevy_app = { version = "0.20", default-features = false }
+bevy_derive = { version = "0.20", default-features = false }
+bevy_utils = { version = "0.20", default-features = false }
+bevy_math = { version = "0.20", default-features = false }
+bevy_reflect = { version = "0.20", default-features = false }
+bevy_transform = { version = "0.20", default-features = false }
+bevy_time = { version = "0.20", default-features = false }
+bevy_enhanced_input = { version = "0.27", default-features = false }
 tracing = { version = "0.1", default-features = false }
-avian_pickup = { version = "0.6", default-features = false, optional = true }
+avian_pickup = { git = "https://github.com/brookman/avian_pickup/", default-features = false, optional = true }
 serde = { version = "1", default-features = false, features = ["derive"], optional = true }
+bevy = "0.20"
 
 [dev-dependencies]
-bevy = { version = "0.19", features = ["track_location", "dynamic_linking", "file_watcher"] }
-bevy_trenchbroom = { version = "0.14.0-rc", features = ["avian_f32"] }
+bevy = { version = "0.20", features = ["track_location", "dynamic_linking", "file_watcher"] }
+bevy_trenchbroom = { version = "0.15.0", features = ["avian_f32"] }
 bevy_mod_mipmap_generator = "0.2"
-avian3d = "0.7.0"
+avian3d = "0.8.0"
 bevy_framepace = "0.22.0"
-bevy_fix_cursor_unlock_web = "0.4"
+bevy_fix_cursor_unlock_web = { git = "https://github.com/valeenalabs/bevy_fix_cursor_unlock_web" }
 wasm-bindgen = "=0.2.108"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [package.metadata.bevy_cli.unstable]
 #web-multi-threading = true
