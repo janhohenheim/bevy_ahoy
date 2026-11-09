@@ -38,7 +38,7 @@ bevy_trenchbroom = { version = "0.15.0", features = ["avian_f32"] }
 bevy_mod_mipmap_generator = "0.2"
 avian3d = "0.8.0"
 bevy_framepace = "0.22.0"
-bevy_fix_cursor_unlock_web = "0.4"
+bevy_fix_cursor_unlock_web = { git = "https://github.com/valeenalabs/bevy_fix_cursor_unlock_web" }
 wasm-bindgen = "=0.2.108"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

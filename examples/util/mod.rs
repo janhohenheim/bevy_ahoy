@@ -364,7 +364,7 @@ fn tweak_materials(
     }
 }
 
-#[derive(Component, Reflect)]
+#[derive(Component, Clone, Reflect)]
 pub struct StableGround {
     previous: VecDeque<Vec3>,
     fall_timer: Timer,

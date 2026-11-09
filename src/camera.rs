@@ -48,7 +48,8 @@ pub struct CharacterControllerCameraOf {
 }
 
 impl CharacterControllerCameraOf {
-    pub fn new(character_controller: Entity) -> Self {
+    pub fn new(character_controller: impl Into<Entity>) -> Self {
+	    let character_controller = character_controller.into();
         Self {
             character_controller,
             enable_smoothing: true,
