@@ -554,6 +554,7 @@ dependencies = [
  "bevy_math",
  "bevy_mod_mipmap_generator",
  "bevy_reflect",
+ "bevy_shape",
  "bevy_time",
  "bevy_transform",
  "bevy_trenchbroom",
