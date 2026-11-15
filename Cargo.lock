@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_ahoy"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "avian3d",
  "avian_pickup",
