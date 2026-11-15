@@ -23,6 +23,7 @@ bevy_app = { version = "0.20", default-features = false }
 bevy_derive = { version = "0.20", default-features = false }
 bevy_utils = { version = "0.20", default-features = false }
 bevy_math = { version = "0.20", default-features = false }
+bevy_shape = { version = "0.20", default-features = false }
 bevy_reflect = { version = "0.20", default-features = false }
 bevy_transform = { version = "0.20", default-features = false }
 bevy_time = { version = "0.20", default-features = false }
@@ -30,7 +31,6 @@ bevy_enhanced_input = { version = "0.27", default-features = false }
 tracing = { version = "0.1", default-features = false }
 avian_pickup = { version = "0.7", default-features = false, optional = true }
 serde = { version = "1", default-features = false, features = ["derive"], optional = true }
-bevy = "0.20"
 
 [dev-dependencies]
 bevy = { version = "0.20", features = ["track_location", "dynamic_linking", "file_watcher"] }
