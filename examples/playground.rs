@@ -141,7 +141,7 @@ pub(crate) struct PlayerInput;
 impl PlayerInput {
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
         world.commands().entity(ctx.entity).apply_scene(bsn! {
-            Action<PlayerInput> [
+            Actions<PlayerInput> [
                 Action<Movement>::new()
                 DeadZone
                 Bindings [
@@ -181,7 +181,7 @@ impl PlayerInput {
                 ]
                 --
                 Action<Mantle>::new()
-                Hold::new(0.2)
+                ~Hold::new(0.2)
                 Bindings [
                     Binding(KeyCode::Space)
                     --
@@ -222,7 +222,7 @@ impl PlayerInput {
                     Binding(MouseButton::Right)
                 ]
                 --
-                Action<ThrowObject>
+                Action<ThrowObject>::new()
                 ActionSettings { consume_input: true }
                 Press
                 Bindings [
@@ -320,12 +320,25 @@ enum CollisionLayer {
 }
 
 #[solid_class(base(Transform, Visibility))]
+#[component(on_add = on_add_func_train)]
 #[derive(Default)]
-#[require(RigidBody::Kinematic, TransformInterpolation, GlobalTransform)]
+#[require(GlobalTransform)]
 struct FuncTrain {
     target: String,
     speed: f32,
     rotation: Vec3,
+}
+
+/// Physics components are inserted outside the scene world, since `RigidBody`
+/// pulls in required components that aren't registered for reflection.
+fn on_add_func_train(mut world: DeferredWorld, ctx: HookContext) {
+    if world.is_scene_world() {
+        return;
+    }
+    world
+        .commands()
+        .entity(ctx.entity)
+        .insert((RigidBody::Kinematic, TransformInterpolation));
 }
 
 #[point_class(base(Transform, Visibility))]
@@ -463,7 +476,7 @@ impl Npc {
                 Action<Jump>::new()
                 ActionMock {
                     state: TriggerState::Fired,
-                    value: {true.into()},
+                    value: {true},
                     span: Duration::from_secs(2),
                     enabled: false
                 }

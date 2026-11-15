@@ -28,18 +28,18 @@ bevy_transform = { version = "0.20", default-features = false }
 bevy_time = { version = "0.20", default-features = false }
 bevy_enhanced_input = { version = "0.27", default-features = false }
 tracing = { version = "0.1", default-features = false }
-avian_pickup = { git = "https://github.com/brookman/avian_pickup/", default-features = false, optional = true }
+avian_pickup = { version = "0.7", default-features = false, optional = true }
 serde = { version = "1", default-features = false, features = ["derive"], optional = true }
 bevy = "0.20"
 
 [dev-dependencies]
 bevy = { version = "0.20", features = ["track_location", "dynamic_linking", "file_watcher"] }
-bevy_trenchbroom = { version = "0.15.0", features = ["avian_f32"] }
-bevy_mod_mipmap_generator = "0.2"
+bevy_trenchbroom = { version = "0.16.0", features = ["avian_f32"] }
+bevy_mod_mipmap_generator = "0.3"
 avian3d = "0.8.0"
-bevy_framepace = "0.22.0"
-bevy_fix_cursor_unlock_web = { git = "https://github.com/valeenalabs/bevy_fix_cursor_unlock_web" }
-wasm-bindgen = "=0.2.108"
+bevy_framepace = "0.23.0"
+bevy_fix_cursor_unlock_web = "0.5"
+wasm-bindgen = "=0.2.130"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }

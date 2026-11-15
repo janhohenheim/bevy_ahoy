@@ -5,12 +5,10 @@ use std::{collections::VecDeque, f32::consts::TAU, time::Duration};
 use avian3d::prelude::*;
 use bevy::{
     camera::Exposure,
+    pbr::AtmosphereSettings,
     light::{
-        Atmosphere,
-        CascadeShadowConfigBuilder,
-        DirectionalLightShadowMap,
-        atmosphere::ScatteringMedium,
-        light_consts::lux,
+        Atmosphere, CascadeShadowConfigBuilder, DirectionalLightShadowMap,
+        atmosphere::ScatteringMedium, light_consts::lux,
     },
     platform::collections::HashSet,
     post_process::bloom::Bloom,
@@ -87,16 +85,14 @@ fn update_debug_text(
                 .collect::<HashSet<_>>(),
         )
         .map(|name| {
-            name
-                .map(|n| format!("{} ({})", n.entity, n))
+            name.map(|n| format!("{} ({})", n.entity, n))
                 .unwrap_or_else(|e| format!("{}", e))
         })
         .collect::<Vec<_>>();
     let real_collisions = names
         .iter_many(colliding_entities.iter())
         .map(|name| {
-            name
-                .map(|n| format!("{} ({})", n.entity, n))
+            name.map(|n| format!("{} ({})", n.entity, n))
                 .unwrap_or_else(|n| format!("{}", n))
         })
         .collect::<Vec<_>>();
@@ -153,29 +149,29 @@ fn setup_ui(mut commands: Commands) {
             "Controls:\nWASD: move\nSpace: jump\nCtrl: crouch\nEsc: free mouse\nR: reset position\nBacktick: Toggle Debug Menu",
         ),
     ));
-	commands.spawn_scene(bsn! {
-		DebugInput
-		Actions<DebugInput> [
-			Action<Reset>::new()
-			Release
-			Bindings [
-				Binding(KeyCode::KeyR)
-				--
-				Binding(GamepadButton::Select)
-			]
-			--
-			Action<ToggleDebug>::new()
-			Release
-			Bindings [
-				Binding(KeyCode::Backquote)
-				--
-				Binding(GamepadButton::Start)
-			]
-		]
-	});
+    commands.spawn_scene(bsn! {
+        DebugInput
+        Actions<DebugInput> [
+            Action<Reset>::new()
+            Release
+            Bindings [
+                Binding(KeyCode::KeyR)
+                --
+                Binding(GamepadButton::Select)
+            ]
+            --
+            Action<ToggleDebug>::new()
+            Release
+            Bindings [
+                Binding(KeyCode::Backquote)
+                --
+                Binding(GamepadButton::Start)
+            ]
+        ]
+    });
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Clone, Default)]
 struct DebugInput;
 
 #[derive(Debug, InputAction)]
@@ -253,6 +249,8 @@ fn tweak_camera(insert: On<Insert<Camera3d>>, mut commands: Commands, assets: Re
         }),
         Exposure { ev100: 9.0 },
         Bloom::default(),
+        // Since Bevy 0.20, cameras must opt in to rendering the `Atmosphere` entity.
+        AtmosphereSettings::default(),
     ));
 }
 
@@ -335,38 +333,38 @@ fn spawn_crosshair(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn tweak_materials(
-	mut asset_events: MessageReader<AssetEvent<StandardMaterial>>,
-	mut mats: ResMut<Assets<StandardMaterial>>,
-	assets: Res<AssetServer>,
+    mut asset_events: MessageReader<AssetEvent<StandardMaterial>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    assets: Res<AssetServer>,
 ) {
-	for event in asset_events.read() {
-		let AssetEvent::LoadedWithDependencies { id } = event else {
-			continue;
-		};
-		let Some(mut mat) = mats.get_mut(*id) else {
-			continue;
-		};
-		if mat
-			.base_color_texture
-			.as_ref()
-			.and_then(|t| {
-				assets
-					.get_path(t.id())?
-					.path()
-					.file_name()?
-					.to_string_lossy()
-					.to_lowercase()
-					.into()
-			})
-			.is_some_and(|name| name.contains("water_01"))
-		{
-			mat.base_color = Color::WHITE.with_alpha(0.85);
-			mat.perceptual_roughness = 0.2;
-			mat.alpha_mode = AlphaMode::Blend;
-		} else {
-			mat.perceptual_roughness = 0.8;
-		}
-	}
+    for event in asset_events.read() {
+        let AssetEvent::LoadedWithDependencies { id } = event else {
+            continue;
+        };
+        let Some(mut mat) = mats.get_mut(*id) else {
+            continue;
+        };
+        if mat
+            .base_color_texture
+            .as_ref()
+            .and_then(|t| {
+                assets
+                    .get_path(t.id())?
+                    .path()
+                    .file_name()?
+                    .to_string_lossy()
+                    .to_lowercase()
+                    .into()
+            })
+            .is_some_and(|name| name.contains("water_01"))
+        {
+            mat.base_color = Color::WHITE.with_alpha(0.85);
+            mat.perceptual_roughness = 0.2;
+            mat.alpha_mode = AlphaMode::Blend;
+        } else {
+            mat.perceptual_roughness = 0.8;
+        }
+    }
 }
 
 #[derive(Component, Clone, Reflect)]

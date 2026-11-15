@@ -1,4 +1,4 @@
-use avian_pickup::{Holding, actor::AvianPickupActorState};
+use avian_pickup::interaction::Holding;
 use bevy_ecs::relationship::Relationship as _;
 
 use crate::prelude::*;
@@ -14,7 +14,7 @@ impl Plugin for AhoyPickupGluePlugin {
 
 fn filter_out_picked_up_prop(
     insert: On<Insert<Holding>>,
-    pickup_actor: Query<(&Holding, &CharacterControllerCameraOf), Changed<AvianPickupActorState>>,
+    pickup_actor: Query<(&Holding, &CharacterControllerCameraOf)>,
     mut kcc: Query<&mut CharacterController>,
     prop: Query<&RigidBodyColliders>,
 ) {
@@ -32,7 +32,7 @@ fn filter_out_picked_up_prop(
 
 fn filter_in_unpicked_prop(
     discard: On<Discard<Holding>>,
-    pickup_actor: Query<(&Holding, &CharacterControllerCameraOf), Changed<AvianPickupActorState>>,
+    pickup_actor: Query<(&Holding, &CharacterControllerCameraOf)>,
     mut kcc: Query<&mut CharacterController>,
     prop: Query<&RigidBodyColliders>,
 ) {
