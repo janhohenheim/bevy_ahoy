@@ -1397,11 +1397,11 @@ fn handle_tac(
         hit.normal1
     } else {
         let hit = cast_move(
-        wish_velocity * time.delta_secs(),
-        move_and_slide,
-        ctx,
-        transform,
-    )?;
+            wish_velocity * time.delta_secs(),
+            move_and_slide,
+            ctx,
+            transform,
+        )?;
         hit.normal1
     };
     // Don't tac off of ceilings/overhangs
