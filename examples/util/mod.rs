@@ -5,11 +5,11 @@ use std::{collections::VecDeque, f32::consts::TAU, time::Duration};
 use avian3d::prelude::*;
 use bevy::{
     camera::Exposure,
-    pbr::AtmosphereSettings,
     light::{
         Atmosphere, CascadeShadowConfigBuilder, DirectionalLightShadowMap,
         atmosphere::ScatteringMedium, light_consts::lux,
     },
+    pbr::AtmosphereSettings,
     platform::collections::HashSet,
     post_process::bloom::Bloom,
     prelude::*,
@@ -249,7 +249,6 @@ fn tweak_camera(insert: On<Insert<Camera3d>>, mut commands: Commands, assets: Re
         }),
         Exposure { ev100: 9.0 },
         Bloom::default(),
-        // Since Bevy 0.20, cameras must opt in to rendering the `Atmosphere` entity.
         AtmosphereSettings::default(),
     ));
 }
