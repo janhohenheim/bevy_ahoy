@@ -103,23 +103,23 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
 #[require(
-    PlayerInput,
-    CharacterController {
+	PlayerInput,
+	CharacterController{
         acceleration_hz: 10.0,
         air_acceleration_hz: 150.0,
         speed: 6.0,
         gravity: 23.0,
         friction_hz: 4.0,
         ..default()
-    },
-    RigidBody::Kinematic,
-    Collider::cylinder(0.7, 1.8),
-    CollisionLayers::new(
+		},
+	RigidBody::Kinematic,
+	Collider::cylinder(0.7, 1.8),
+	CollisionLayers::new(
         [CollisionLayer::Player],
         LayerMask::ALL,
-    ),
-    CheckpointHistory,
-    StableGround::default(),
+	),
+	CheckpointHistory,
+	StableGround::default(),
 )]
 struct Player;
 
@@ -128,7 +128,7 @@ struct Player;
 struct SpawnPlayer;
 
 fn spawn_player(
-    insert: On<Insert, SpawnPlayer>,
+    insert: On<Insert<SpawnPlayer>>,
     players: Query<Entity, With<Player>>,
     spawner: Query<&Transform>,
     camera: Single<Entity, With<Camera3d>>,
@@ -156,51 +156,64 @@ pub(crate) struct PlayerInput;
 
 impl PlayerInput {
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        world
-            .commands()
-            .entity(ctx.entity)
-            .insert(actions!(PlayerInput[
-                (
-                    Action::<Movement>::new(),
-                    DeadZone::default(),
-                    Bindings::spawn((
-                        Cardinal::wasd_keys(),
-                        Axial::left_stick()
-                    ))
-                ),
-                (
-                    Action::<Jump>::new(),
-                    bindings![KeyCode::Space,  GamepadButton::South],
-                ),
-                (
-                    Action::<Crouch>::new(),
-                    bindings![KeyCode::ControlLeft, GamepadButton::LeftTrigger2],
-                ),
-                (
-                    Action::<YankCamera>::new(),
-                    bindings![MouseButton::Right]
-                ),
-                (
-                    Action::<YankCamera>::new(),
-                    Scale::splat(-1.0),
-                    bindings![MouseButton::Left],
-                ),
-                (
-                    Action::<RotateCamera>::new(),
-                    Bindings::spawn((
-                        Spawn((Binding::mouse_motion(), Scale::splat(0.05))),
-                        Axial::right_stick().with((Scale::splat(4.0), DeadZone::default())),
-                    ))
-                ),
-               (
-                    Action::<SaveCheckpoint>::new(),
-                    bindings![KeyCode::Digit1, GamepadButton::DPadDown],
-                ),
-                (
-                    Action::<LoadCheckpoint>::new(),
-                    bindings![KeyCode::Digit2, GamepadButton::DPadUp],
-                ),
-            ]));
+        world.commands().entity(ctx.entity).apply_scene(bsn! {
+            Actions<PlayerInput> [
+                Action<Movement>::new()
+                DeadZone
+                Bindings [
+                    {preset::cardinal::wasd_keys()}
+                    --
+                    {preset::axial::left_stick()}
+                ]
+                --
+                Action<Jump>::new()
+                Bindings [
+                    Binding(KeyCode::Space)
+                    --
+                    Binding(GamepadButton::South)
+                ]
+                --
+                Action<Crouch>::new()
+                Bindings [
+                    Binding(KeyCode::ControlLeft)
+                    --
+                    Binding(GamepadButton::LeftTrigger2)
+                ]
+                --
+                Action<YankCamera>::new()
+                Bindings [
+                    Binding(MouseButton::Right)
+                    --
+                    ~Scale::splat(-1.0)
+                    Binding(MouseButton::Left)
+                ]
+                --
+                Action<RotateCamera>::new()
+                Bindings [
+                    ~Scale::splat(0.05)
+                    Binding::mouse_motion()
+                    --
+                    {preset::axial::new(
+                        (GamepadAxis::RightStickX, Scale::splat(4.0), DeadZone::default()),
+                        (GamepadAxis::RightStickY, Scale::splat(4.0), DeadZone::default())
+                    )}
+                ]
+                --
+                Action<SaveCheckpoint>::new()
+                Bindings [
+                    Binding(KeyCode::Digit1)
+                    --
+                    Binding(GamepadButton::DPadDown)
+                ]
+                --
+                Action<LoadCheckpoint>::new()
+                Bindings [
+                    Binding(KeyCode::Digit2)
+                    --
+                    Binding(GamepadButton::DPadUp)
+                ]
+            ]
+        });
     }
 }
 
@@ -210,12 +223,12 @@ struct FuncIllusionary;
 #[solid_class(base(Transform, Visibility))]
 #[component(on_add = Self::on_add_prop)]
 #[require(
-    Sensor,
-    CollisionEventsEnabled,
-    CollisionLayers::new(
+	Sensor,
+	CollisionEventsEnabled,
+	CollisionLayers::new(
         [CollisionLayer::Sensor],
         [CollisionLayer::Player],
-    )
+	)
 )]
 struct TriggerTeleport;
 
@@ -243,12 +256,12 @@ impl TriggerTeleport {
 #[component(on_add = Self::on_add_prop)]
 #[derive(Default)]
 #[require(
-    Sensor,
-    CollisionEventsEnabled,
-    CollisionLayers::new(
+	Sensor,
+	CollisionEventsEnabled,
+	CollisionLayers::new(
         [CollisionLayer::Sensor],
         [CollisionLayer::Player],
-    )
+	)
 )]
 struct TriggerPush {
     speed: f32,
@@ -299,7 +312,7 @@ enum CollisionLayer {
 #[derive(Component, Default, Deref, DerefMut)]
 struct TimeText(Stopwatch);
 
-fn setup_time(_add: On<Add, Player>, mut commands: Commands) {
+fn setup_time(_add: On<Add<Player>>, mut commands: Commands) {
     commands.spawn((
         Node {
             justify_self: JustifySelf::Center,

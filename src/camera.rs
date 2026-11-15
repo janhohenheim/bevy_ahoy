@@ -45,7 +45,8 @@ pub struct CharacterControllerCameraOf {
 }
 
 impl CharacterControllerCameraOf {
-    pub fn new(character_controller: Entity) -> Self {
+    pub fn new(character_controller: impl Into<Entity>) -> Self {
+        let character_controller = character_controller.into();
         Self {
             character_controller,
             enable_smoothing: true,
@@ -105,7 +106,8 @@ pub(crate) fn sync_camera_transform(
                 // changing the collider does not change the transform, so to get the correct position for the feet,
                 // we need to use the collider we spawned with.
                 .standing_collider
-                .aabb(Vec3::default(), Rotation::default())
+                .aabb(Vec3::default(), Rotation::default(), 0.0)
+                // margin is new from the latest avian update
                 .size()
                 .y;
             let view_height = if state.crouching {

@@ -64,7 +64,8 @@ fn setup_collider(
         };
         cfg.filter.excluded_entities.add(collider_entity);
 
-        let standing_aabb = collider.aabb(default(), Rotation::default());
+        let standing_aabb = collider.aabb(default(), Rotation::default(), 0.0); // <= Jan, review this! the
+        // margin is new from the latest avian update
         let standing_height = standing_aabb.max.y - standing_aabb.min.y;
 
         derived.standing_collider = collider.clone();
@@ -1394,16 +1395,14 @@ fn handle_tac(
         transform,
     ) {
         hit.normal1
-    } else if let Some(hit) = cast_move(
-        wish_velocity * time.delta_secs(),
-        move_and_slide,
-        ctx,
-        transform,
-    ) {
-        hit.normal1
     } else {
-        // No wall to tic tac off of, we're in free-fall.
-        return None;
+        let hit = cast_move(
+            wish_velocity * time.delta_secs(),
+            move_and_slide,
+            ctx,
+            transform,
+        )?;
+        hit.normal1
     };
     // Don't tac off of ceilings/overhangs
     if normal.y < -0.01 {

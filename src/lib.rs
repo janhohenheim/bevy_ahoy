@@ -43,7 +43,7 @@ pub use avian_pickup::{
     prelude::{
         AvianPickupActor as PickupConfig, AvianPickupActorHoldConfig as PickupHoldConfig,
         AvianPickupActorPullConfig as PickupPullConfig,
-        AvianPickupActorThrowConfig as PickupThrowConfig,
+        AvianPickupActorPushConfig as PickupPushConfig,
     },
 };
 
@@ -54,6 +54,7 @@ pub use crate::{
 };
 use crate::{input::AccumulatedInput, prelude::*};
 use avian3d::character_controller::move_and_slide::MoveHitData;
+use bevy::prelude::Cuboid;
 use bevy_app::PluginGroupBuilder;
 use bevy_ecs::{entity::MapEntities, intern::Interned, schedule::ScheduleLabel};
 use bevy_time::Stopwatch;
@@ -160,7 +161,7 @@ pub enum AhoySystems {
     WaterState,
     CustomPositionIntegration,
     Transform,
-    SpeculativeMargin::ZERO,
+    SpeculativeCcd::ZERO,
     CollidingEntities,
 )]
 pub struct CharacterController {

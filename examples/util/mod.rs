@@ -9,6 +9,7 @@ use bevy::{
         Atmosphere, CascadeShadowConfigBuilder, DirectionalLightShadowMap,
         atmosphere::ScatteringMedium, light_consts::lux,
     },
+    pbr::AtmosphereSettings,
     platform::collections::HashSet,
     post_process::bloom::Bloom,
     prelude::*,
@@ -84,17 +85,15 @@ fn update_debug_text(
                 .collect::<HashSet<_>>(),
         )
         .map(|name| {
-            name.name
-                .map(|n| format!("{} ({})", name.entity, n))
-                .unwrap_or_else(|| format!("{}", name.entity))
+            name.map(|n| format!("{} ({})", n.entity, n))
+                .unwrap_or_else(|e| format!("{}", e))
         })
         .collect::<Vec<_>>();
     let real_collisions = names
         .iter_many(colliding_entities.iter())
         .map(|name| {
-            name.name
-                .map(|n| format!("{} ({})", name.entity, n))
-                .unwrap_or_else(|| format!("{}", name.entity))
+            name.map(|n| format!("{} ({})", n.entity, n))
+                .unwrap_or_else(|n| format!("{}", n))
         })
         .collect::<Vec<_>>();
     let ground = state
@@ -150,24 +149,29 @@ fn setup_ui(mut commands: Commands) {
             "Controls:\nWASD: move\nSpace: jump\nCtrl: crouch\nEsc: free mouse\nR: reset position\nBacktick: Toggle Debug Menu",
         ),
     ));
-    commands.spawn((
-        DebugInput,
-        actions!(DebugInput[
-            (
-                Action::<Reset>::new(),
-                bindings![KeyCode::KeyR, GamepadButton::Select],
-                Release::default(),
-            ),
-            (
-                Action::<ToggleDebug>::new(),
-                bindings![KeyCode::Backquote, GamepadButton::Start],
-                Release::default(),
-            ),
-        ]),
-    ));
+    commands.spawn_scene(bsn! {
+        DebugInput
+        Actions<DebugInput> [
+            Action<Reset>::new()
+            Release
+            Bindings [
+                Binding(KeyCode::KeyR)
+                --
+                Binding(GamepadButton::Select)
+            ]
+            --
+            Action<ToggleDebug>::new()
+            Release
+            Bindings [
+                Binding(KeyCode::Backquote)
+                --
+                Binding(GamepadButton::Start)
+            ]
+        ]
+    });
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Clone, Default)]
 struct DebugInput;
 
 #[derive(Debug, InputAction)]
@@ -231,7 +235,7 @@ fn reset_player_inner(
     camera_transform.rotation = Quat::IDENTITY;
 }
 
-fn tweak_camera(insert: On<Insert, Camera3d>, mut commands: Commands, assets: Res<AssetServer>) {
+fn tweak_camera(insert: On<Insert<Camera3d>>, mut commands: Commands, assets: Res<AssetServer>) {
     commands.entity(insert.entity).insert((
         EnvironmentMapLight {
             diffuse_map: assets.load("environment_maps/voortrekker_interior_1k_diffuse.ktx2"),
@@ -245,11 +249,12 @@ fn tweak_camera(insert: On<Insert, Camera3d>, mut commands: Commands, assets: Re
         }),
         Exposure { ev100: 9.0 },
         Bloom::default(),
+        AtmosphereSettings::default(),
     ));
 }
 
 fn tweak_directional_light(
-    insert: On<Insert, DirectionalLight>,
+    insert: On<Insert<DirectionalLight>>,
     mut commands: Commands,
     directional_light: Query<(&Transform, &DirectionalLight), Without<Tweaked>>,
     tweaked: Query<Entity, With<Tweaked>>,
@@ -361,7 +366,7 @@ fn tweak_materials(
     }
 }
 
-#[derive(Component, Reflect)]
+#[derive(Component, Clone, Reflect)]
 pub struct StableGround {
     previous: VecDeque<Vec3>,
     fall_timer: Timer,
